@@ -1,0 +1,97 @@
+/* Neutral chat surface theme. */
+:root { --action-bg:#b86238; --action-hover:#ca7043; --action-ink:#fff; }
+:root[data-theme="dark"] {
+  --bg:#000; --panel:#191919; --panel2:#101010; --line:#292929;
+  --ink:#eee; --dim:#aaa; --faint:#777; --hover-bg:#242424;
+  --composer-bg:#20201f; --composer-line:#494947;
+}
+:root[data-theme="light"] {
+  --bg:#e3e3e0; --panel:#eaeae7; --panel2:#d9d9d6; --line:#c2c2bd;
+  --ink:#292927; --dim:#62625d; --faint:#797973;
+  --hover-bg:#cfcfc9; --chip-bg:#d5d5d0; --code-bg:#dcdcd7;
+  --composer-bg:#d7d7d2; --composer-line:#b1b1aa; --plus-color:#292927;
+}
+body { height:100dvh; }
+:root, body.sidebar-collapsed { --content-max:680px; }
+/* 側欄收起後整個對話回合（問題、LLM 回答、檢索卡片）跟著頁面放寬，
+   多階 BOM 這類寬表格才不會被裁掉；輸入框仍維持 680px。 */
+body.sidebar-collapsed .turn { max-width:1400px; }
+aside { min-height:0; }
+.brand { padding-top:17px; padding-bottom:7px; padding-left:44px; font-family:Georgia,"Times New Roman",serif; font-size:20px; font-weight:500; line-height:1.375; }
+.agent .n, .cur-agent .n { font-family:Georgia,"Noto Sans TC","Microsoft JhengHei",serif; }
+aside > :not(.agents):not(.convs) { flex-shrink:0; }
+.agents { min-height:0; max-height:min(36dvh, 280px); overflow-y:auto; overscroll-behavior:contain; flex:0 1 auto; scrollbar-width:thin; }
+.agents::-webkit-scrollbar { width:6px; }
+.agents::-webkit-scrollbar-thumb { border:0; border-radius:3px; }
+.convs { min-height:0; }
+.agent { align-items:center; padding:9px 8px; }
+.agent .dot, .cur-agent .dot { margin-top:0; }
+main { position:relative; min-height:0; }
+header { border-bottom:0; padding:16px 24px; }
+#sidebarToggle, #themeToggle, #metricsBtn, #manualBtn {
+  width:36px; height:36px; padding:0; border:0; border-radius:11px;
+  background:transparent; color:var(--action-bg); display:grid; place-items:center;
+  transition:background .15s ease, transform .15s ease;
+}
+#sidebarToggle { left:4px; }
+#sidebarToggle svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.agents-hd .chev { display:block; width:12px; height:12px; flex:0 0 12px; fill:currentColor; transform-origin:center; }
+#sidebarToggle:hover, #themeToggle:hover, #metricsBtn:hover, #manualBtn:hover { background:var(--hover-bg); color:var(--action-hover); }
+#sidebarToggle:active, #themeToggle:active, #metricsBtn:active, #manualBtn:active { transform:scale(.94); }
+#manualBtn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+#log { min-height:0; padding:24px 28px; }
+.welcome { display:none; text-align:center; padding:0 24px; }
+.welcome h2 { margin:0; font-size:24px; font-weight:400; line-height:1.4; letter-spacing:.02em; }
+main.is-empty .welcome { display:block; margin-top:auto; margin-bottom:32px; }
+main.is-empty #log { position:absolute; top:76px; left:0; right:0; max-height:20%; padding:0 24px; }
+main.is-empty footer { margin-bottom:auto; padding-top:0; }
+footer { border-top:0; padding:12px 28px 28px; }
+.composer { width:100%; max-width:680px; }
+#f { min-height:50px; border-radius:18px; padding:6px; gap:8px; align-items:center; }
+#f:focus-within { border-color:var(--composer-line); }
+#q { min-width:0; padding:3px 0; font-size:16px; line-height:1.5; }
+#q::placeholder { color:var(--dim); opacity:1; }
+.plus-btn { width:32px; height:32px; margin-left:4px; border-radius:50%; transition:transform .18s ease, background .18s ease; }
+.plus-btn:hover { background:var(--hover-bg); }
+.plus-btn[aria-expanded="true"] { transform:rotate(45deg); background:var(--hover-bg); opacity:1; }
+@media (prefers-reduced-motion:reduce) { .plus-btn { transition:none; } }
+.plus-btn::before { width:15px; height:1.5px; }
+.plus-btn::after { width:1.5px; height:15px; }
+.agent-picker, .mic-btn { flex:0 0 auto; display:flex; align-items:center; justify-content:center; background:transparent; border:0; color:var(--dim); cursor:pointer; font:inherit; padding:8px; border-radius:24px; }
+.agent-picker { gap:6px; max-width:150px; font-size:14px; padding:6px; }
+.agent-picker span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.agent-picker svg { width:18px; height:18px; flex-shrink:0; }
+.mic-btn { width:32px; height:36px; color:var(--ink); }
+.agent-picker svg, .mic-btn svg { fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.mic-btn svg { width:21px; height:24px; }
+.agent-picker:hover, .mic-btn:hover { background:var(--hover-bg); }
+.mic-btn[aria-pressed="true"] { color:#ef813e; background:var(--hover-bg); }
+.mic-btn:disabled { opacity:.35; cursor:default; }
+button.send, button.stop { width:36px; height:36px; border-radius:11px; }
+button.send { background:var(--action-bg); color:var(--action-ink); }
+button.send:hover { background:var(--action-hover); }
+.send svg { width:20px; height:20px; }
+#f:has(.stop.show) .send { display:none; }
+.voice-status { color:var(--dim); font-size:13px; padding:4px 20px 0; }
+.voice-status:empty { display:none; }
+button:focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
+#q:focus-visible { outline:none; }
+.q { width:fit-content; max-width:85%; margin-left:auto; background:var(--composer-bg); border:0; border-radius:22px; padding:12px 20px; }
+@media (max-width:760px) {
+  aside { width:240px; flex-basis:240px; position:fixed; inset:0 auto 0 0; z-index:35; box-shadow:12px 0 36px var(--popup-shadow); }
+  header, body.sidebar-collapsed header { padding:14px 16px 14px 54px; }
+  header .sub { display:none; }
+  header h1 { font-size:15px; }
+  header .right { gap:6px; }
+  .manual-btn { padding:6px 9px; }
+  #log { padding:18px 16px; }
+  footer { padding:12px 14px max(18px, env(safe-area-inset-bottom)); }
+  main.is-empty .welcome { margin-bottom:32px; }
+  .welcome h2 { font-size:20px; }
+  #f { min-height:50px; padding:6px; gap:6px; border-radius:18px; }
+  #q { font-size:16px; }
+  .plus-btn { width:30px; height:36px; margin-left:0; }
+  .agent-picker { max-width:90px; font-size:13px; gap:3px; padding:6px 3px; }
+  .mic-btn { width:32px; padding:5px; }
+  button.send, button.stop { width:36px; height:36px; }
+}

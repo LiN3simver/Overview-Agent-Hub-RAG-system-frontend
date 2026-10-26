@@ -1,0 +1,36 @@
+# Agent_Hub —— 統一前端，唯一需要對外開放的服務。
+#
+#   cp .env.example .env                       # 填 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL
+#   docker network create ragnet               # 第一次才需要，重複執行沒事
+#   FRONTEND_PORT=<對外 port> docker compose up --build -d
+#
+# ★ FRONTEND_PORT 沒給的話預設 8600。Hub 前後端同一個 process、同一個 port，
+#   只需要開這一個對外 port。
+#
+# ★ 綁 0.0.0.0：這是唯一給使用者瀏覽器連的服務，其他 agent 後端
+#   不對外開，只在 ragnet 上讓這裡打。
+services:
+  hub:
+    build: .
+    env_file:
+      - .env
+    environment:
+      # 對應 registry.py 的 agent_id，指到 ragnet 上其他專案的容器名字。
+      # 那個專案還沒上線也沒關係 -- DNS 解不到會快速失敗，card 顯示離線，
+      # 不影響 Hub 本身或已經上線的其他 agent（分批上線就是設計成這樣）。
+      A2A_RFQ_URL: ${A2A_RFQ_URL:-http://agent-rfq:8300}
+      A2A_PARTRAG_URL: ${A2A_PARTRAG_URL:-http://agent-partrag:8000}
+      A2A_BOM_URL: ${A2A_BOM_URL:-http://agent-bom:8500}
+      A2A_CAR8D_URL: ${A2A_CAR8D_URL:-http://agent-car8d:8700}
+      A2A_ISO_URL: ${A2A_ISO_URL:-http://agent-iso:8800}
+    ports:
+      - "0.0.0.0:${FRONTEND_PORT:-8600}:8600"
+    volumes:
+      # 對話資料庫（hub.db 與備份）存在這裡，不掛的話容器重建後對話紀錄會歸零。
+      - ./data:/app/data
+    networks:
+      - ragnet
+
+networks:
+  ragnet:
+    external: true

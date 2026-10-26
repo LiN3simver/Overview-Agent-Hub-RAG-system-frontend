@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Hub — OEM/ODM 估價 Multi-Agent</title>
+<!--
+  統一前端。這一頁不認識任何一個專案的內部端點，只認識兩件事：
+    GET  /hub/agents            誰在線上、能做什麼、範例問句
+    POST /hub/message           送一題（SSE：hub/meta/results/trace/delta/error/done）
+
+  ★ 卡片以通用形狀渲染（agentkit/envelope.py 的 Hit + Block），
+    新增 agent 不需要改這一頁，只要它的 /a2a/card 回得出東西。
+
+  ★ kv 區塊裡 null 一定畫成「未填」、0 畫成 0：未填畫成 0 會被誤讀成數值真的是零。
+
+  側欄預設收起 Agents、只留目前選到的那一個，讓對話清單當主要內容。
+-->
+<style>
+  :root {
+    --bg:#0a0d11; --panel:#12171d; --panel2:#0d1116; --line:#232b34;
+    --ink:#e6edf3; --dim:#93a1b0; --faint:#5c6b7a;
+    --accent:#9cc2ab; --accent-ink:#0e1712; --green:#c6f5d3; --yellow:#f7f0c8;
+    --ok:#2e9c5a; --warn:#c9a227; --bad:#c25b5b;
+    --content-max:920px;
+    /* 以下色碼收成變數，讓淺色主題（見下面的 override 區塊）可以整套替換。 */
+    --hover-bg:#171e26; --offline-dot:#44515e; --chip-bg:#1a212a;
+    --mark-color:#f5a623; --code-bg:#0a0e12;
+    --composer-bg:#20242b; --composer-line:#333a44;
+    --stop-hover:#a94a4a; --popup-shadow:rgba(0,0,0,.4); --plus-color:#ffffff;
+    --accent-tint-bg:rgba(156,194,171,.16); --accent-tint-border:rgba(156,194,171,.4);
+    --banner-warn-bg:rgba(201,162,39,.13); --banner-bad-bg:rgba(194,91,91,.14);
+    --blk-green-bg:rgba(198,245,211,.07); --blk-yellow-bg:rgba(247,240,200,.07);
+    --blk-warn-bg:rgba(194,91,91,.10); --blk-good-bg:rgba(46,156,90,.10);
+    --warn-ink:#f7c9c9; --good-ink:#b6f5cd;
+    --tag-ok-bg:#1d5c34; --tag-ok-ink:#b6f5cd;
+    --tag-err-bg:#6e2b2b; --tag-err-ink:#f7c9c9;
+  }
+  /* ---------- 淺色主題 ----------
+     三種狀態：
+       1. 沒手動選過 —— 跟著作業系統設定（@media 區塊；用 :root:not([data-theme="dark"])
+          避免蓋掉使用者手動選的深色）。
+       2. 手動選過 —— <html data-theme> 蓋過系統設定，兩個方向都要贏。
+       3. 都沒有 —— 維持 :root 的深色。
+     --accent／--green／--yellow 在深色模式是淺色調，淺色主題改用同色相的深色版本，
+     否則在白底上幾乎看不見。 */
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg:#f6f7f9; --panel:#ffffff; --panel2:#eef0f3; --line:#dde2e8;
+      --ink:#1b232c; --dim:#5b6672; --faint:#8891a0;
+      --accent:#2f7d54; --accent-ink:#ffffff; --green:#1f7a4d; --yellow:#8a6a10;
+      --ok:#2e9c5a; --warn:#9a7a12; --bad:#b23636;
+      --hover-bg:#eef1f5; --offline-dot:#aab3bf; --chip-bg:#eef1f5;
+      --mark-color:#b5690b; --code-bg:#f1f3f6;
+      --composer-bg:#eef0f3; --composer-line:#d7dce3;
+      --stop-hover:#9c3c3c; --popup-shadow:rgba(20,30,40,.16); --plus-color:#1b232c;
+      --accent-tint-bg:rgba(47,125,84,.09); --accent-tint-border:rgba(47,125,84,.35);
+      --banner-warn-bg:rgba(154,122,18,.10); --banner-bad-bg:rgba(178,54,54,.10);
+      --blk-green-bg:rgba(31,122,77,.08); --blk-yellow-bg:rgba(138,106,16,.08);
+      --blk-warn-bg:rgba(178,54,54,.08); --blk-good-bg:rgba(46,156,90,.10);
+      --warn-ink:#8a2f2f; --good-ink:#1f6b40;
+      --tag-ok-bg:#d9f2e3; --tag-ok-ink:#1f6b40;
+      --tag-err-bg:#f7dede; --tag-err-ink:#8a2f2f;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg:#f6f7f9; --panel:#ffffff; --panel2:#eef0f3; --line:#dde2e8;
+    --ink:#1b232c; --dim:#5b6672; --faint:#8891a0;
+    --accent:#2f7d54; --accent-ink:#ffffff; --green:#1f7a4d; --yellow:#8a6a10;
+    --ok:#2e9c5a; --warn:#9a7a12; --bad:#b23636;
+    --hover-bg:#eef1f5; --offline-dot:#aab3bf; --chip-bg:#eef1f5;
+    --mark-color:#b5690b; --code-bg:#f1f3f6;
+    --composer-bg:#eef0f3; --composer-line:#d7dce3;
+    --stop-hover:#9c3c3c; --popup-shadow:rgba(20,30,40,.16); --plus-color:#1b232c;
+    --accent-tint-bg:rgba(47,125,84,.09); --accent-tint-border:rgba(47,125,84,.35);
+    --banner-warn-bg:rgba(154,122,18,.10); --banner-bad-bg:rgba(178,54,54,.10);
+    --blk-green-bg:rgba(31,122,77,.08); --blk-yellow-bg:rgba(138,106,16,.08);
+    --blk-warn-bg:rgba(178,54,54,.08); --blk-good-bg:rgba(46,156,90,.10);
+    --warn-ink:#8a2f2f; --good-ink:#1f6b40;
+    --tag-ok-bg:#d9f2e3; --tag-ok-ink:#1f6b40;
+    --tag-err-bg:#f7dede; --tag-err-ink:#8a2f2f;
+  }
+  /* 手動選深色時要贏過系統淺色設定。值與 :root 相同，重寫一次是為了選擇器優先權。 */
+  :root[data-theme="dark"] {
+    --bg:#0a0d11; --panel:#12171d; --panel2:#0d1116; --line:#232b34;
+    --ink:#e6edf3; --dim:#93a1b0; --faint:#5c6b7a;
+    --accent:#9cc2ab; --accent-ink:#0e1712; --green:#c6f5d3; --yellow:#f7f0c8;
+    --ok:#2e9c5a; --warn:#c9a227; --bad:#c25b5b;
+    --hover-bg:#171e26; --offline-dot:#44515e; --chip-bg:#1a212a;
+    --mark-color:#f5a623; --code-bg:#0a0e12;
+    --composer-bg:#20242b; --composer-line:#333a44;
+    --stop-hover:#a94a4a; --popup-shadow:rgba(0,0,0,.4); --plus-color:#ffffff;
+    --accent-tint-bg:rgba(156,194,171,.16); --accent-tint-border:rgba(156,194,171,.4);
+    --banner-warn-bg:rgba(201,162,39,.13); --banner-bad-bg:rgba(194,91,91,.14);
+    --blk-green-bg:rgba(198,245,211,.07); --blk-yellow-bg:rgba(247,240,200,.07);
+    --blk-warn-bg:rgba(194,91,91,.10); --blk-good-bg:rgba(46,156,90,.10);
+    --warn-ink:#f7c9c9; --good-ink:#b6f5cd;
+    --tag-ok-bg:#1d5c34; --tag-ok-ink:#b6f5cd;
+    --tag-err-bg:#6e2b2b; --tag-err-ink:#f7c9c9;
+  }
+  body { transition:background-color .15s ease, color .15s ease; }
+  /* 側欄收起後卡片/表格的可用寬度上限跟著放寬，文字跟表格欄位才有地方伸展。 */
+  body.sidebar-collapsed { --content-max:1400px; }
+  * { box-sizing:border-box; }
+  * { scrollbar-color: var(--faint) var(--panel2); }
+  *::-webkit-scrollbar { width:16px; height:16px; }
+  *::-webkit-scrollbar-track { background:var(--panel2); }
+  *::-webkit-scrollbar-thumb { background:var(--faint); border-radius:5px; border:2px solid var(--panel2); }
+  *::-webkit-scrollbar-thumb:hover { background:var(--dim); }
+  body {
+    margin:0; height:100vh; display:flex; background:var(--bg); color:var(--ink);
+    font:17px/1.6 "Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+  }
+  /* ---------- 側欄 ---------- */
+  aside {
+    width:290px; flex:0 0 290px; border-right:1px solid var(--line);
+    background:var(--panel2); display:flex; flex-direction:column; overflow:hidden;
+    transition:width .18s ease, flex-basis .18s ease;
+  }
+  /* 收起時寬度歸零；漢堡按鈕是 fixed、不在 aside 裡，收起後仍點得到。 */
+  aside.collapsed { width:0; flex:0 0 0; border-right:0; }
+  aside h2 {
+    font-size:12.5px; letter-spacing:.8px; color:var(--dim); font-weight:600;
+    margin:0; padding:14px 14px 6px; text-transform:uppercase;
+  }
+  .brand { padding:14px 14px 10px 52px; font-weight:700; font-size:17px; white-space:nowrap; }
+
+  .sidebar-toggle {
+    position:fixed; top:12px; left:12px; z-index:40;
+    width:32px; height:32px; display:flex; flex-direction:column; justify-content:center;
+    align-items:center; gap:4px; background:var(--panel); border:1px solid var(--line);
+    border-radius:6px; cursor:pointer;
+  }
+  .sidebar-toggle span { display:block; width:16px; height:2px; background:var(--dim); border-radius:1px; }
+  .sidebar-toggle:hover { border-color:var(--accent); }
+  .sidebar-toggle:hover span { background:var(--ink); }
+
+  .agents-hd {
+    display:flex; align-items:center; justify-content:space-between;
+    cursor:pointer; padding-right:14px;
+  }
+  .agents-hd:hover { color:var(--ink); }
+  .agents-hd .chev { font-size:12.5px; transition:transform .15s; color:var(--faint); }
+  .agents-hd.open .chev { transform:rotate(90deg); }
+  .cur-agent {
+    display:flex; gap:8px; align-items:center; padding:6px 14px 10px; cursor:pointer;
+  }
+  .cur-agent .n { font-size:14.5px; font-weight:600; }
+  .cur-agent .s { font-size:12.5px; color:var(--faint); }
+  .agents { padding:0 8px 8px; display:none; }
+  .agents.open { display:block; }
+  .agent {
+    display:flex; gap:8px; align-items:flex-start; padding:8px 8px; border-radius:6px;
+    cursor:pointer; border:1px solid transparent;
+  }
+  .agent:hover { background:var(--hover-bg); }
+  .agent.on { background:var(--hover-bg); border-color:var(--accent); }
+  .dot { width:8px; height:8px; border-radius:50%; margin-top:8px; flex:0 0 8px; background:var(--faint); }
+  .dot.ready { background:var(--ok); }
+  .dot.degraded { background:var(--warn); }
+  .dot.not_ready { background:var(--bad); }
+  .dot.offline { background:var(--offline-dot); }
+  .agent .n { font-size:15.5px; font-weight:600; }
+  .agent .r { font-size:13px; color:var(--dim); line-height:1.45; }
+  .agent .s { font-size:12.5px; color:var(--faint); }
+  .convs { flex:1; overflow-y:auto; padding:0 8px 12px; }
+  .conv {
+    display:flex; gap:6px; align-items:center; padding:7px 8px; border-radius:6px;
+    cursor:pointer; font-size:14.5px; color:var(--dim);
+  }
+  .conv:hover { background:var(--hover-bg); color:var(--ink); }
+  .conv.on { background:var(--hover-bg); color:var(--ink); }
+  .conv .t { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .conv .t.editing { overflow:visible; }
+  .conv .t input {
+    width:100%; background:var(--panel); border:1px solid var(--accent); color:var(--ink);
+    border-radius:4px; padding:1px 5px; font:inherit; font-size:14.5px;
+  }
+  .conv .e { color:var(--faint); font-size:14px; opacity:0; }
+  .conv:hover .e { opacity:1; }
+  .conv .e:hover { color:var(--accent); }
+  .conv .x { color:var(--faint); font-size:16px; }
+  .conv .x:hover { color:var(--bad); }
+  .side-btn {
+    margin:6px 14px 10px; padding:6px 10px; font:inherit; font-size:14.5px;
+    background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    border-radius:6px; cursor:pointer;
+  }
+  .side-btn:hover { border-color:var(--accent); }
+  .side-btn:disabled { cursor:default; opacity:.7; }
+  .side-btn.bad { border-color:var(--bad); color:var(--bad); }
+
+  /* ---------- 主區 ---------- */
+  main { flex:1; display:flex; flex-direction:column; min-width:0; }
+  header {
+    padding:11px 20px; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  }
+  /* 側欄收起時漢堡按鈕會浮在主區左上角，標題要讓出這塊位置，不然疊在一起。 */
+  body.sidebar-collapsed header { padding-left:54px; }
+  header h1 { font-size:18px; margin:0; font-weight:600; }
+  header .sub { color:var(--dim); font-size:14.5px; }
+  header .right { margin-left:auto; display:flex; align-items:center; gap:10px; }
+  .mode-hint { font-size:13.5px; color:var(--faint); }
+  .manual-btn {
+    background:var(--panel2); border:1px solid var(--line); color:var(--ink);
+    border-radius:6px; padding:6px 14px; font:inherit; font-size:14px; cursor:pointer;
+  }
+  /* 深色時與底部對話輸入框共用底色。 */
+  :root[data-theme="dark"] .manual-btn { background:var(--composer-bg); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .manual-btn { background:var(--composer-bg); }
+  }
+  .manual-btn:hover { border-color:var(--accent); color:var(--accent); }
+  #themeToggle, #metricsBtn {
+    width:38px; height:38px; padding:0; display:grid; place-items:center;
+    color:var(--accent);
+  }
+  #themeToggle svg, #metricsBtn svg {
+    width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.8;
+    stroke-linecap:round; stroke-linejoin:round;
+  }
+
+  /* ---------- 通知 ----------
+     一則通知 = 一句白話 + 一顆可關閉的「✕」。
+     技術細節留在後端 log 與 /hub/health，不佔聊天畫面。 */
+  .banner {
+    margin:12px auto 0; max-width:var(--content-max); font-size:15px; padding:9px 12px;
+    border-radius:6px; border-left:3px solid var(--warn); background:var(--banner-warn-bg);
+    display:flex; align-items:flex-start; gap:10px; line-height:1.55;
+  }
+  .banner.bad { border-color:var(--bad); background:var(--banner-bad-bg); }
+  .banner .msg { flex:1; min-width:0; }
+  .banner .bx {
+    flex:0 0 auto; cursor:pointer; color:var(--faint); font-size:16px; line-height:1.4;
+    padding:0 2px; user-select:none;
+  }
+  .banner .bx:hover { color:var(--ink); }
+
+  #log { flex:1; overflow-y:auto; padding:16px 20px 24px; }
+  .turn { max-width:var(--content-max); margin:0 auto 26px; }
+  /* 使用者問題用 --accent 調出的淡色塊，刻意與卡片、答案的 --panel 底色區分。 */
+  .q {
+    background:var(--accent-tint-bg); border:1px solid var(--accent-tint-border);
+    border-left:3px solid var(--accent); color:var(--ink);
+    border-radius:6px; padding:9px 13px; margin-bottom:12px;
+  }
+  .who { font-size:13px; color:var(--dim); margin-bottom:6px; }
+  .a { white-space:pre-wrap; }
+  .a.pending { color:var(--dim); }
+  /* 「思考中」指示：呼吸燈淡入淡出＋跑秒數，讓使用者分得出還在處理、不是卡住。
+     改用系統原生西文字體、字級比正文小，讀起來像狀態列而不是回答內容。 */
+  .think { display:inline-flex; align-items:baseline; gap:5px;
+    font:13px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+    letter-spacing:.1px; }
+  .think .lbl { animation:think-fade 1.4s ease-in-out infinite; }
+  .think .tm { color:var(--faint); font-variant-numeric:tabular-nums; }
+  @keyframes think-fade { 0%,100% { opacity:.4; } 50% { opacity:1; } }
+  @media (prefers-reduced-motion: reduce) { .think .lbl { animation:none; } }
+
+  .hits { margin-top:14px; display:flex; flex-direction:column; gap:10px; }
+  /* 委派時下游追加卡片前的分隔標題，讓使用者分得出哪些卡片來自其他 agent。 */
+  .peer-hits-head { color:var(--dim); font-size:13.5px; margin:6px 0 -2px;
+    padding-top:8px; border-top:1px dashed var(--line); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:11px 13px; }
+  .card .id { font-weight:600; color:var(--accent); }
+  .card .meta { color:var(--dim); font-size:14.5px; margin:2px 0 7px; }
+  /* pre-wrap：換行是資料的一部分（例如一行一個料號），不能被 HTML 壓掉；長行仍會自動折。 */
+  .card .body { font-size:15.5px; margin-bottom:8px; white-space:pre-wrap; }
+  .badges { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:7px; }
+  .badge {
+    font-size:12.5px; color:var(--dim); background:var(--chip-bg); border:1px solid var(--line);
+    border-radius:10px; padding:1px 8px;
+  }
+  .why { font-size:13px; color:var(--faint); margin-top:6px; }
+  /* 命中詞高亮：只標文字顏色、不用底色，刻意不用 --yellow，避免與 .blk.yellow 語意混淆。 */
+  mark.kwhit { background:none; color:var(--mark-color); font-weight:700; }
+  .blocks { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:4px; }
+  @media (max-width:820px) { .blocks { grid-template-columns:1fr; } }
+  .blk { border:1px solid var(--line); border-radius:5px; padding:8px 10px; font-size:14.5px; }
+  .blk h4 { margin:0 0 6px; font-size:13px; font-weight:700; letter-spacing:.4px; color:var(--dim); }
+  .blk.green  { background:var(--blk-green-bg); } .blk.green h4  { color:var(--green); }
+  .blk.yellow { background:var(--blk-yellow-bg); } .blk.yellow h4 { color:var(--yellow); }
+  .blk.warn   { background:var(--blk-warn-bg); }   .blk.warn h4   { color:var(--warn-ink); }
+  .blk.good   { background:var(--blk-good-bg); }   .blk.good h4   { color:var(--good-ink); }
+  .blk.wide { grid-column:1/-1; }
+  .blk pre { margin:0; white-space:pre-wrap; font:14px/1.55 ui-monospace,Consolas,monospace; }
+  .row { display:flex; justify-content:space-between; gap:12px; padding:1px 0; }
+  .row .k { color:var(--dim); }
+  .row .v { font-variant-numeric:tabular-nums; text-align:right; }
+  .row .v.none { color:var(--faint); }   /* 未填 —— 和 0 視覺上必須分得開 */
+  /* kv 的值是長句時改成整列寬、標籤自己一行；否則 flex 會把標籤擠成一字一行。
+     判斷在 block()（值超過 PROSE_CHARS），數字型 kv 維持左標籤、右對齊數字。 */
+  .blk.prose { grid-column:1/-1; }
+  .blk.prose .row { display:block; padding:3px 0; }
+  .blk.prose .row .v { display:block; text-align:left; margin-top:1px;
+                       font-variant-numeric:normal; }
+  /* min-width:100% + width:max-content：欄少時撐滿卡片，欄多時依內容展開，
+     交給 .blk.wide 的 overflow-x 捲動，不壓縮欄寬。 */
+  table.tb { min-width:100%; width:max-content; border-collapse:collapse; font-size:14.5px; }
+  table.tb th, table.tb td { padding:3px 7px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+  table.tb th { color:var(--dim); font-weight:400; font-size:13px; }
+  .blk.wide { overflow-x:auto; }
+  table.tb td { vertical-align:top; }
+
+  .relay { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .relay b { color:var(--faint); font-weight:400; font-size:13px; align-self:center; }
+  .chip {
+    font-size:13px; color:var(--dim); background:var(--chip-bg); border:1px solid var(--line);
+    border-radius:10px; padding:2px 9px; cursor:pointer;
+  }
+  .chip:hover { color:var(--ink); border-color:var(--accent); }
+
+  /* 資料來源原檔（Hit.links）。刻意與 relay chip 同樣式：兩者都是「從卡片往外走」的動作。 */
+  .srcs { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .srcs b { color:var(--faint); font-weight:400; font-size:13px; align-self:center; }
+  a.src {
+    font-size:13px; color:var(--dim); background:var(--chip-bg); border:1px solid var(--line);
+    border-radius:10px; padding:2px 9px; text-decoration:none;
+  }
+  a.src:hover { color:var(--ink); border-color:var(--accent); }
+
+  /* ---------- 委派軌跡 ---------- */
+  details.trace { margin-top:12px; border:1px solid var(--line); border-radius:6px; background:var(--panel2); }
+  details.trace > summary { cursor:pointer; padding:7px 12px; font-size:14.5px; color:var(--dim); }
+  details.trace[open] > summary { border-bottom:1px solid var(--line); }
+  .step { padding:7px 12px; border-bottom:1px solid var(--line); font-size:14px; }
+  .step:last-child { border-bottom:0; }
+  .step .hd { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .step .tool { color:var(--accent); font-family:ui-monospace,Consolas,monospace; }
+  .step .ag { color:var(--dim); }
+  .step .ms { color:var(--faint); margin-left:auto; font-variant-numeric:tabular-nums; }
+  .step .tag { font-size:12px; border-radius:4px; padding:1px 6px; font-weight:700; }
+  .tag.ok { background:var(--tag-ok-bg); color:var(--tag-ok-ink); }
+  .tag.err { background:var(--tag-err-bg); color:var(--tag-err-ink); }
+  .step pre {
+    margin:5px 0 0; padding:6px 8px; background:var(--code-bg); border-radius:4px;
+    font:13px/1.5 ui-monospace,Consolas,monospace; white-space:pre-wrap;
+    color:var(--dim); max-height:190px; overflow:auto;
+  }
+
+  /* ---------- 輸入 ----------
+     整條輸入列是單一膠囊（「+」／輸入框／送出），用中性灰讓視線先落在文字上。 */
+  footer { border-top:1px solid var(--line); padding:11px 20px 13px; }
+  /* 範例彈出選單要相對這個容器定位，所以外面包一層 position:relative。 */
+  .composer { position:relative; max-width:var(--content-max); margin:0 auto; }
+  /* align-items:flex-end：輸入框長高時，按鈕不會被 flex 預設的 stretch 一起拉長。 */
+  #f {
+    display:flex; gap:8px; align-items:flex-end;
+    background:var(--composer-bg); border:1px solid var(--composer-line); border-radius:26px;
+    padding:6px 8px 6px 6px;
+  }
+  #f:focus-within { border-color:var(--accent); }
+  /* 「+」：範例問句彈出選單（#examplesPop）的入口。無底色無框，與送出／停止按鈕區隔。
+     ★ 十字用 ::before/::after 兩條短槓疊成而不是文字「+」：中文字型的半形符號
+       字面框常偏移，置中後會歪一邊。 */
+  .plus-btn {
+    /* align-self:center：單行時輸入框比這顆方塊略高，跟著 flex-end 貼底會偏低。 */
+    position:relative; align-self:center; flex:0 0 auto; width:28px; height:28px;
+    margin-left:6px; background:transparent; border:0; color:var(--plus-color);
+    font:inherit; cursor:pointer; padding:0; opacity:.85;
+    /* --plus-color 固定是純白／純黑；兩端已是最亮／最暗，hover 改用 opacity。 */
+  }
+  .plus-btn::before, .plus-btn::after {
+    content:''; position:absolute; top:50%; left:50%; background:currentColor;
+    transform:translate(-50%,-50%);
+  }
+  .plus-btn::before { width:15px; height:2px; }
+  .plus-btn::after { width:2px; height:15px; }
+  .plus-btn:hover { opacity:1; }
+  .plus-btn:disabled { opacity:.35; cursor:default; }
+  /* 問題框是 textarea，高度由 JS（autoGrowQ）依內容計算，超過 200px 才出捲軸。
+     resize:none：手動拖曳會跟自動長高衝突。背景透明，色塊畫在 #f 上。 */
+  #q {
+    flex:1; background:transparent; border:0; color:var(--ink);
+    padding:8px 4px; font:inherit; line-height:1.5;
+    resize:none; overflow-y:auto; max-height:200px;
+  }
+  #q:focus { outline:none; }
+  button.send {
+    align-self:center; flex:0 0 auto; background:var(--accent); color:var(--accent-ink); border:0; border-radius:999px;
+    width:38px; height:38px; padding:0; display:grid; place-items:center; cursor:pointer;
+  }
+  button.send:disabled { opacity:.5; cursor:default; }
+  button.stop {
+    align-self:center; flex:0 0 auto; background:var(--bad); color:#fff; border:0; border-radius:999px;
+    width:38px; height:38px; padding:0; display:none; place-items:center; cursor:pointer;
+  }
+  button.stop.show { display:grid; }
+  button.stop:hover { background:var(--stop-hover); }
+  .send svg, .stop svg { width:18px; height:18px; }
+  .send svg { fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .stop svg { fill:currentColor; }
+  /* 範例問句彈出選單：貼在膠囊正上方，收起時不佔版面高度。 */
+  .examples-pop {
+    display:none; position:absolute; bottom:calc(100% + 10px); left:0;
+    max-width:min(100%, 560px); flex-wrap:wrap; gap:6px;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:10px; box-shadow:0 10px 28px var(--popup-shadow); z-index:30;
+  }
+  .examples-pop.open { display:flex; }
+  .examples-pop b { color:var(--faint); font-weight:400; font-size:13px; width:100%; }
+</style>
+<link rel="stylesheet" href="/static/chat.css?v=20261020-wide-turn">
+<script>
+// ★ 必須在 <body> 渲染前同步設定 <html data-theme>，否則會先閃一次預設主題色。
+(function () {
+  try {
+    var t = localStorage.getItem('theme');
+    document.documentElement.dataset.theme = t === 'light' ? 'light' : 'dark';
+  } catch (e) {}
+})();
+</script>
+</head>
+<body>
+
+<button class="sidebar-toggle" id="sidebarToggle" title="收合／展開側欄" aria-label="收合／展開側欄">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1"/><path d="M9 3v18"/></svg>
+</button>
+
+<aside id="sidebar">
+  <div class="brand">Agent Hub</div>
+  <h2 class="agents-hd" id="agentsHd"><span>Agents</span><svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="m4 2 6 4-6 4Z"/></svg></h2>
+  <div class="cur-agent" id="curAgent"></div>
+  <div class="agents" id="agents"></div>
+  <h2>對話</h2>
+  <button class="side-btn" id="newconv">＋ 新對話</button>
+  <div class="convs" id="convs"></div>
+</aside>
+
+<main class="is-empty" id="chatMain">
+  <header>
+    <div class="right">
+      <button type="button" class="manual-btn" id="themeToggle" title="切換淺色／深色主題"></button>
+      <button type="button" class="manual-btn" id="metricsBtn" title="統計總覽（新分頁）" aria-label="統計總覽"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10m8 10V4m8 16v-7"/></svg></button>
+      <button type="button" class="manual-btn" id="manualBtn" title="開啟說明書（新分頁）" aria-label="說明書"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v16M12 5C9 3 5 3 2 4v15c3-1 7-1 10 2 3-3 7-3 10-2V4c-3-1-7-1-10 1Z"/></svg></button>
+    </div>
+  </header>
+
+  <div id="log"></div>
+
+  <div class="welcome" id="welcome"><h2>今天想聊些什麼？</h2></div>
+  <footer>
+    <div class="composer">
+      <div class="examples-pop" id="examplesPop"></div>
+      <form id="f">
+        <button type="button" class="plus-btn" id="plusBtn" title="範例問句" aria-label="範例問句" aria-controls="examplesPop" aria-expanded="false"></button>
+        <textarea id="q" autocomplete="off" placeholder="問問 Agent Hub" aria-label="輸入問題" autofocus rows="1"></textarea>
+        <button type="button" class="agent-picker" id="agentPicker" title="切換 Agent" aria-controls="agents" aria-expanded="false"><span id="composerAgent">Agent</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+        <button type="button" class="mic-btn" id="micBtn" title="語音輸入" aria-label="語音輸入" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M9 22h6"/></svg></button>
+        <button class="send" id="send" title="送出" aria-label="送出">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>
+        </button>
+        <button type="button" class="stop" id="stop" title="停止" aria-label="停止">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10H7z"/></svg>
+        </button>
+      </form>
+      <div class="voice-status" id="voiceStatus" role="status" aria-live="polite"></div>
+    </div>
+  </footer>
+</main>
+
+<script>
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $ = id => document.getElementById(id);
+
+// ---------------------------------------------------------------- 關鍵字高亮
+// 抽出使用者這題的關鍵詞，卡片裡對得上的字直接標色，掃一眼就知道有沒有查到。
+// 沒有中文分詞器，用簡單規則：
+//   1. 英數字（料號、型號、代碼）連續兩碼以上當一個詞。
+//   2. 中文以標點／空白切出的片語。
+//   3. 濾掉「請問」「為什麼」這類問句起手式，否則每張卡片都會亮。
+const STOPWORDS = new Set([
+  '請問','麻煩','幫我','我想','我要','什麼','哪些','哪個','為什麼','如何',
+  '是否','有沒有','可以','可不可以','這個','那個','一下','嗎','呢','的',
+]);
+function extractKeywords(q) {
+  const s = String(q || '');
+  const toks = new Set();
+  (s.match(/[A-Za-z0-9][A-Za-z0-9\-_.]*/g) || [])
+    .filter(t => t.length >= 2)
+    .forEach(t => toks.add(t));
+  s.split(/[\s,，。、;；:：()（）「」『』\/\\?？!!]+/)
+    .map(t => t.trim())
+    .filter(t => t.length >= 2 && !STOPWORDS.has(t))
+    .forEach(t => toks.add(t));
+  // 長的詞先比對，避免短詞先吃掉字元，讓長詞反而標不出完整範圍
+  return Array.from(toks).sort((a, b) => b.length - a.length).slice(0, 20);
+}
+
+// 先 esc 再標色：在原始字串比對完再 esc，位置會被跳脫字元的長度差打亂。
+//
+// ★ 分隔符號容錯：資料多來自 OCR，同一代碼的標點常不一致（VW-1／VW1、OD／O.D.）。
+//   字元之間允許任意個「- _ . / 空白」，只要字元依序出現就算命中。
+const SEP = '[-_./\\s]*';
+function kwPattern(k) {
+  const chars = Array.from(esc(k)).filter(c => !/[-_./\s]/.test(c));
+  // 去掉分隔符號後不足 2 個字元就不當關鍵字，否則容錯比對會整張卡片到處命中。
+  if (chars.length < 2) return '';
+  return chars.map(c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(SEP);
+}
+function escHl(s, kws) {
+  const out = esc(s);
+  if (!kws || !kws.length) return out;
+  const pattern = kws.map(kwPattern).filter(Boolean).join('|');
+  if (!pattern) return out;
+  return out.replace(new RegExp('(' + pattern + ')', 'gi'), '<mark class="kwhit">$1</mark>');
+}
+
+// ---------------------------------------------------------------- 答案排版
+// 在全形「。」後斷行，避免整段擠成一塊；句號後接收尾標點（）」』等）或已在段尾時不斷。
+// 半形 . 一律不動（縮寫、小數點）。
+//
+// ★ 斷行要在 esc() 之前做，否則會比對到跳脫後的實體字元；先插 \n，escape 完再換成 <br>。
+// PATIENCE_RE：對話紀錄裡若含下游的等候提示，顯示前一律濾掉。
+const PATIENCE_RE = /（已經等了 \d+ 秒[^）]*）\s*/g;
+function fmtAnswer(s) {
+  return esc(String(s ?? '').replace(PATIENCE_RE, '').replace(/。[ \t]*(?![）)」』】》〉”"\n]|$)/g, '。\n'))
+    .replace(/\n/g, '<br>');
+}
+const log = $('log');
+function syncChatLayout() {
+  $('chatMain').classList.toggle('is-empty', !log.querySelector('.turn'));
+}
+new MutationObserver(syncChatLayout).observe(log, {childList:true});
+
+// ---------------------------------------------------------------- 思考中指示
+// SSE 沒有逐 token 回報，所以用跑秒數表示還在處理。單一全域 interval 每秒更新
+// 畫面上的 .think；元素被替換後自然離開 DOM，不必另外清 timer。
+function thinkingHtml(label) {
+  return `<span class="think" data-start="${Date.now()}">`
+       + `<span class="lbl">${esc(label)}</span><span class="tm"></span></span>`;
+}
+setInterval(() => {
+  document.querySelectorAll('.think[data-start]').forEach(el => {
+    const secs = Math.floor((Date.now() - Number(el.dataset.start)) / 1000);
+    const tm = el.querySelector('.tm');
+    if (tm) tm.textContent = secs > 0 ? secs + 's' : '';
+  });
+}, 1000);
+
+// ★ 下游 agent 等太久時，會把一句「（已經等了 N 秒…）」等候提示當成一般 delta 插進串流。
+//   這裡用固定前綴認出來直接丟掉，避免打斷「思考中」動畫（.think 自己有計時）。
+const PATIENCE_PREFIX = '（已經等了 ';
+const isPatienceNote = t => (t || '').trimStart().startsWith(PATIENCE_PREFIX);
+
+// ---------------------------------------------------------------- 自動捲動
+// 「跟隨」語意：使用者停在底部附近才自動捲到底；往上捲就脫離跟隨，捲回底部附近再恢復。
+const STICK_PX = 80;   // 離底部這麼近就算還在跟著看
+let stick = true;
+
+// 送出時新的 turn 很矮，要把它的頂端捲到可視區最上面，底下得有足夠高度，
+// 否則瀏覽器會把捲動鉗制在內容底部。這裡暫時墊一個與可視區等高的墊片，該輪答完就移除。
+let scrollSpacer = null;
+function setSpacer(px) {
+  if (!scrollSpacer) {
+    scrollSpacer = document.createElement('div');
+    log.appendChild(scrollSpacer);
+  }
+  scrollSpacer.style.height = Math.max(0, px) + 'px';
+}
+function clearSpacer() {
+  if (scrollSpacer) { scrollSpacer.remove(); scrollSpacer = null; }
+}
+
+// ★ 這一輪定錨的 turn。有值時該輪期間完全不自動捲動：scrollToTurn 跳一次就定住。
+//   卡片常一次超過一個畫面高，若繼續黏底會把畫面拉離問題。該輪結束才清掉，恢復跟隨到底。
+let focusedTurn = null;
+
+log.addEventListener('scroll', () => {
+  if (focusedTurn) return;   // 定錨期間的捲動位置不受這裡影響
+  stick = log.scrollHeight - log.scrollTop - log.clientHeight <= STICK_PX;
+});
+// force=true 用在「使用者自己剛做了一件事」（開啟另一段對話、開新對話），
+// 那時候跳到底部才是他要的；串流過程中一律不 force。
+function autoScroll(force) {
+  if (focusedTurn) return;   // 這一輪已經定錨在 scrollToTurn 的位置，不再跟著內容捲動
+  if (force) stick = true;
+  if (stick) log.scrollTop = log.scrollHeight;
+}
+
+// 送出當下就跳到這一題，並在該輪結束前保持定錨（見 focusedTurn）。
+function scrollToTurn(turn) {
+  focusedTurn = turn;
+  const top = turn.getBoundingClientRect().top - log.getBoundingClientRect().top + log.scrollTop;
+  log.scrollTop = Math.max(0, top - 12);
+}
+
+let AGENTS = [], BY_ID = {}, cur = null, convId = null, busy = false, abortCtl = null;
+let agentsOpen = false;   // 預設收起，側欄以對話清單為主
+let HUB_LLM = null;       // Hub 自己對 gateway 的探測結果（agentkit/gateway.diagnose）
+
+// 「降級」一律顯示成就緒（同一顆綠燈）：成因多半是背景排程沒跑完等，服務本身仍答得動。
+const STATUS_LABEL = {
+  ready:'就緒', degraded:'就緒', not_ready:'尚未就緒', offline:'未啟動', unknown:'未知',
+};
+const dotClass = s => (s === 'degraded' ? 'ready' : (s || 'unknown'));
+
+// ------------------------------------------------------------------ 通知
+// 一則通知 = 一句話 + 一顆「✕」。只講「現在怎麼了、你還能做什麼」，
+// 不出現 API key、gateway、HTTP 狀態碼等名詞；技術原因留在後端 log 與 /hub/health。
+function notice(text, bad) {
+  return `<div class="banner${bad ? ' bad' : ''}">`
+       + `<span class="msg">${esc(text)}</span>`
+       + `<span class="bx" title="關閉這則通知" data-close="1">✕</span></div>`;
+}
+// 關閉是全域代理的：通知會被插到 #log、也會被插到某一輪的答案裡，
+// 每個地方各綁一次事件很容易漏掉某一條路徑。
+document.addEventListener('click', ev => {
+  const x = ev.target.closest && ev.target.closest('.banner .bx');
+  if (x) x.closest('.banner').remove();
+});
+
+// LLM 壞掉時要講的那一句。diag 裡的 title/detail/fix 是給維護者的，
+// 這裡只取「能不能用」這一件事。
+const LLM_DOWN_MSG = 'AI 現在沒辦法幫你寫答案，所以先把查到的資料直接列給你看。';
+
+// ---------------------------------------------------------------- agents
+async function loadAgents(fresh) {
+  const r = await fetch('/hub/agents' + (fresh ? '?fresh=1' : ''));
+  const d = await r.json();
+  AGENTS = d.agents || [];
+  BY_ID = Object.fromEntries(AGENTS.map(a => [a.agent_id, a]));
+  const llm = d.hub && d.hub.llm;
+  // 後端會實際 ping gateway（結果快取 60 秒），所以這個狀態代表剛剛真的連得上。
+  // 顯示交給 renderBanner；autoModes 等處也會讀 HUB_LLM。
+  HUB_LLM = (llm && llm.diag) || null;
+  renderAgents();
+  // 降級跟就緒在畫面上是同一件事（見 STATUS_LABEL 上方的說明），
+  // 預設選誰也要一起看，不然會跳過一個其實答得動的 agent。
+  if (!cur || !BY_ID[cur]) selectAgent(
+    (AGENTS.find(a => a.status === 'ready' || a.status === 'degraded') || AGENTS[0]).agent_id);
+  else selectAgent(cur, true);
+}
+
+function renderCurAgent() {
+  const a = BY_ID[cur];
+  $('curAgent').innerHTML = a ? `
+    <span class="dot ${dotClass(a.status)}"></span>
+    <span class="n">${esc(a.name)}</span>
+  ` : '';
+}
+
+function renderAgents() {
+  $('agents').innerHTML = AGENTS.map(a => `
+    <div class="agent ${a.agent_id === cur ? 'on' : ''}" data-id="${a.agent_id}">
+      <span class="dot ${dotClass(a.status)}"></span>
+      <span class="n">${esc(a.name)}</span>
+    </div>`).join('');
+  document.querySelectorAll('.agent').forEach(el =>
+    el.onclick = () => { selectAgent(el.dataset.id); setAgentsOpen(false); });
+  renderCurAgent();
+}
+
+function setAgentsOpen(open) {
+  agentsOpen = open;
+  $('agents').classList.toggle('open', open);
+  $('agentsHd').classList.toggle('open', open);
+  $('agentPicker').setAttribute('aria-expanded', String(open));
+  $('curAgent').style.display = open ? 'none' : 'flex';
+}
+$('agentsHd').onclick = () => setAgentsOpen(!agentsOpen);
+$('curAgent').onclick = () => setAgentsOpen(true);
+setAgentsOpen(false);
+
+function selectAgent(id, keepLog) {
+  cur = id;
+  const a = BY_ID[id];
+  renderAgents();
+  $('q').placeholder = '問問 Agent Hub';
+  $('composerAgent').textContent = a.name;
+  renderExamples(a);
+  tabExampleIdx = 0; // 換 agent 後雙擊 Tab 從第一句範例重新開始，不沿用上一個 agent 的位置
+  if (!keepLog) { log.innerHTML = ''; convId = null; renderConvs(); }
+  renderBanner(a);
+  $('q').focus();
+}
+
+// ---------------------------------------------------------------- 自動判斷模式
+//
+// 三種模式由系統依現況決定，不需使用者勾選：
+//   use_tools：agent 有工具就開；資料不出這個 agent。
+//   delegate：有其他在線 agent 可問時才開。開了不代表一定委派——委派迴圈的 system prompt
+//     要求自己答得出來就直接回答（見 agentkit/delegate.py build_system），由模型當場判斷。
+//   no_llm：LLM 連不上時自動改走只檢索，卡片照樣查得到，只是沒有文字摘要。
+function llmDown() { return !!(HUB_LLM && HUB_LLM.ok === false); }
+
+function autoModes() {
+  const a = BY_ID[cur] || {};
+  const caps = a.capabilities || {};
+  // 「還有沒有其他助理可問」：自己以外，還活著（沒有 offline）的 agent
+  const peersAlive = AGENTS.some(x => x.agent_id !== cur && x.status !== 'offline');
+  return {
+    use_tools: !!caps.tools,
+    delegate: !!caps.delegate && peersAlive,
+    no_llm: llmDown(),
+  };
+}
+
+// 「你可以做什麼」「技術架構說明文件」是 partrag/rfq 內建的通用說明，統一放在說明書頁；
+// 範例選單只列實際業務問法，所以濾掉這兩則。
+const MANUAL_LABELS = new Set(['你可以做什麼', '技術架構說明文件']);
+
+// 範例問句以「+」彈出選單呈現：預設收起、不佔版面，選完或點別的地方就收掉。
+let examplesOpen = false;
+function setExamplesOpen(open) {
+  examplesOpen = open;
+  $('examplesPop').classList.toggle('open', open);
+  $('plusBtn').setAttribute('aria-expanded', String(open));
+  $('plusBtn').setAttribute('aria-label', open ? '關閉範例問句' : '範例問句');
+  if (!$('plusBtn').disabled) $('plusBtn').title = open ? '關閉範例問句' : '範例問句';
+}
+$('plusBtn').onclick = ev => { ev.stopPropagation(); setExamplesOpen(!examplesOpen); };
+// 點選單本身或「+」以外的任何地方都要收起來，跟一般下拉選單的習慣一致。
+document.addEventListener('click', ev => {
+  if (!examplesOpen) return;
+  if (ev.target.closest('#examplesPop') || ev.target.closest('#plusBtn')) return;
+  setExamplesOpen(false);
+});
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && examplesOpen) { setExamplesOpen(false); $('plusBtn').focus(); }
+});
+
+function renderExamples(a) {
+  const ex = (a.examples || []).filter(e => !MANUAL_LABELS.has(e.label));
+  $('examplesPop').innerHTML = ex.length
+    ? '<b>試試：</b>' + ex.map(e =>
+        `<span class="chip" data-p="${esc(e.prompt)}">${esc(e.label || e.prompt)}</span>`).join('')
+    : '';
+  $('plusBtn').disabled = !ex.length;
+  $('plusBtn').title = ex.length ? '範例問句' : '這個 agent 沒有範例問句';
+  setExamplesOpen(false);   // 換 agent 時收起來，避免顯示上一個 agent 還開著的選單
+  document.querySelectorAll('#examplesPop .chip').forEach(el => el.onclick = () => {
+    // 點範例不直接送出：填進輸入框讓使用者可以修改，按「送出」才送。
+    $('q').value = el.dataset.p;
+    autoGrowQ();
+    $('q').focus();
+    setExamplesOpen(false);
+  });
+}
+
+// not_ready 的原因：優先用 AgentSpec 宣告的 blocked_by（較口語），沒有就退回 detail 裡的
+// 技術原因（status_fn 丟例外時會放在 detail.error）。順位與 manual.html 的 notReadyReason() 一致。
+function notReadyReason(a) {
+  const blocked = (a.blocked_by || []).join('；');
+  if (blocked) return blocked;
+  const d = a.detail || {};
+  return d.error || d.note || (d.llm_diag && d.llm_diag.title) || '';
+}
+
+// 通知只放一句話；後端可能回整串例外訊息，這裡截成一行。
+function oneLine(s, n) {
+  const t = String(s || '').replace(/\s+/g, ' ').trim();
+  return t.length > (n || 40) ? t.slice(0, n || 40) + '…' : t;
+}
+
+function renderBanner(a) {
+  // ★ 只清 #log 直接子層的橫幅；.turn 裡的錯誤橫幅要保留，否則失敗原因會無聲消失。
+  log.querySelectorAll(':scope > .banner').forEach(el => el.remove());
+  let html = '';
+  if (a.status === 'offline') {
+    html = notice(`${a.name}現在沒有開機，所以它沒辦法回答問題。`, true);
+  } else if (a.status === 'not_ready') {
+    // 服務活著、只是它要用的東西還沒好（card 真的連不上時是 offline，
+    // 不會走到這裡）。原因後端有給就帶一小段，沒給就不硬掰。
+    const why = oneLine(notReadyReason(a), 30);
+    html = notice(why
+      ? `${a.name}還在等它要用的東西（${why}），現在還不能回答問題。`
+      : `${a.name}還在準備，現在還不能回答問題。`, true);
+  // 「降級」不對使用者顯示（見 STATUS_LABEL 上方的說明）。
+  } else if (llmDown()) {
+    // agent 回報 ready 但 Hub 連不上 gateway：card 狀態有快取，且 rfq/bom 的 status_fn
+    // 不檢查 LLM。此時已自動改走只檢索（見 autoModes），這句說明回答為什麼只有卡片。
+    html = notice(LLM_DOWN_MSG, true);
+  }
+  if (html) log.insertAdjacentHTML('afterbegin', html);
+}
+
+// ---------------------------------------------------------------- 卡片渲染
+// null = 未填、0 = 填了 0。這兩者絕不能顯示成同一個東西。
+function cell(label, v, kws) {
+  const blank = v === null || v === undefined || v === '';
+  return `<div class="row"><span class="k">${escHl(label, kws)}</span>`
+       + `<span class="v${blank ? ' none' : ''}">${blank ? '未填' : escHl(v, kws)}</span></div>`;
+}
+
+// kv 的值超過這麼多字就當「長句」，整塊改用 .blk.prose 的堆疊排法；數值、日期等短值不受影響。
+const PROSE_CHARS = 40;
+
+function block(b, kws) {
+  // 整塊一起判斷：只要有一列是長句，整塊就換排法，避免同一塊混用兩種排版。
+  const prose = b.kind === 'kv' && (b.rows || []).some(r =>
+    String(r[1] === null || r[1] === undefined ? '' : r[1]).length > PROSE_CHARS);
+  const wide = b.kind !== 'kv' ? ' wide' : (prose ? ' prose' : '');
+  let inner = '';
+  if (b.kind === 'kv') inner = (b.rows || []).map(r => cell(r[0], r[1], kws)).join('');
+  else if (b.kind === 'text') inner = `<pre>${escHl(b.text, kws)}</pre>`;
+  else if (b.kind === 'table') inner =
+    `<table class="tb">${b.head && b.head.length
+      ? '<tr>' + b.head.map(h => `<th>${escHl(h, kws)}</th>`).join('') + '</tr>' : ''}
+     ${(b.rows || []).map(r => '<tr>' + r.map(c =>
+        `<td class="${c === null || c === undefined ? 'v none' : ''}">${
+          c === null || c === undefined ? '未填' : escHl(c, kws)}</td>`).join('') + '</tr>').join('')}
+     </table>`;
+  return `<div class="blk ${b.tone || 'neutral'}${wide}">
+    ${b.title ? `<h4>${escHl(b.title, kws)}</h4>` : ''}${inner}</div>`;
+}
+
+// 串聯的入口：把這一筆的 id 帶去問另一個 agent，讓使用者手動接力也能一鍵完成。
+// ★ 只列這一輪 trace 裡真的回了 ok 的 agent，否則沒委派的回答也會像在推人去問別人。
+//   工具模式與純摘要模式因此不會出現 chip。
+function relayChips(h, askedIds) {
+  const ids = askedIds instanceof Set ? askedIds : new Set(askedIds || []);
+  const others = AGENTS.filter(a =>
+    a.agent_id !== cur && a.status !== 'offline' && ids.has(a.agent_id));
+  if (!others.length || !h.id) return '';
+  return `<div class="relay"><b>帶去問：</b>` + others.map(a =>
+    `<span class="chip" data-ask="${esc(a.agent_id)}" data-id="${esc(h.id)}">${esc(a.name)}</span>`
+  ).join('') + `</div>`;
+}
+
+// 這一輪實際問到誰。trace 的 result 事件帶著執行者 agent_id：自己的工具回的是
+// 自己（會被 !== cur 濾掉），只有真的走出去的呼叫才會留下別人的 id。
+// 只收 ok 的：呼叫失敗等於沒問到，那時候掛一顆「帶去問」只是把失敗包裝成建議。
+function askedAgents(trace, selfId) {
+  const s = new Set();
+  for (const t of trace || []) {
+    // prefetch 也算「真的問到了」—— 那一步確實打了對方的 /a2a/search
+    if ((t.phase === 'result' || t.phase === 'prefetch')
+        && t.ok && t.agent && t.agent !== (selfId || cur)) s.add(t.agent);
+  }
+  return s;
+}
+
+// hits 是在 results 事件（工具迴圈還沒跑）就畫好的，那時候還不知道會問到誰。
+// 所以卡片先留一格空的 .relay-slot，trace 進來再補上去。
+function applyRelay(root, askedIds) {
+  root.querySelectorAll('.card').forEach((card, i) => {
+    const h = (root._hits || [])[i];
+    if (!h) return;
+    const slot = card.querySelector('.relay-slot');
+    if (slot) slot.innerHTML = relayChips(h, askedIds);
+  });
+  bindRelay(root);
+}
+
+function sourceLinks(h) {
+  // 資料來源原檔：卡片上部分數字來自 OCR，使用者要能一鍵打開原檔核對。
+  // ★ 只收 http/https：這是唯一會塞進 href 的欄位，擋掉 javascript: 之類的 scheme。
+  const links = (h.links || []).filter(l => /^https?:\/\//i.test(l[1] || ''));
+  if (!links.length) return '';
+  return `<div class="srcs"><b>資料來源：</b>` + links.map(l =>
+    `<a class="src" href="${esc(l[1])}" target="_blank" rel="noopener">${esc(l[0])}</a>`
+  ).join('') + `</div>`;
+}
+
+function hitCard(h, kws) {
+  return `<div class="card">
+    <div class="id">${escHl(h.id, kws)}</div>
+    ${h.title && h.title !== h.id ? `<div class="body">${escHl(h.title, kws)}</div>` : ''}
+    ${h.subtitle ? `<div class="meta">${escHl(h.subtitle, kws)}</div>` : ''}
+    ${(h.badges || []).length ? `<div class="badges">${
+      h.badges.map(b => `<span class="badge">${escHl(b[0], kws)}${b[1] !== undefined && b[1] !== null && b[1] !== '' ? ' ' + escHl(b[1], kws) : ''}</span>`).join('')}</div>` : ''}
+    ${h.body ? `<div class="body">${escHl(h.body, kws)}</div>` : ''}
+    ${(h.blocks || []).length ? `<div class="blocks">${h.blocks.map(b => block(b, kws)).join('')}</div>` : ''}
+    ${(h.why || []).length ? `<div class="why">命中理由：${h.why.map(w => escHl(w, kws)).join('、')}</div>` : ''}
+    ${sourceLinks(h)}
+    <div class="relay-slot"></div>
+  </div>`;
+}
+
+function bindRelay(root) {
+  root.querySelectorAll('[data-ask]').forEach(el => el.onclick = () => {
+    selectAgent(el.dataset.ask);
+    $('q').value = el.dataset.id;
+    autoGrowQ();
+    $('q').focus();
+  });
+}
+
+// ---------------------------------------------------------------- 委派軌跡
+function traceStep(t) {
+  if (t.phase === 'call') {
+    return `<div class="step" data-id="${esc(t.id)}">
+      <div class="hd"><span class="tag ok" style="background:#26332c;color:#b9dbc5">呼叫</span>
+        <span class="tool">${esc(t.tool)}</span></div>
+      <pre>${esc(JSON.stringify(t.args, null, 1))}</pre></div>`;
+  }
+  // prefetch：問句命中下游主題關鍵詞時，系統在模型回答前先預先查詢
+  // （見 agentkit/delegate._prefetch_peers）。不是模型決定的，所以標成「預先查詢」而非「呼叫」。
+  if (t.phase === 'prefetch') {
+    return `<div class="step">
+      <div class="hd">
+        <span class="tag ${t.ok ? 'ok' : 'err'}" style="background:#2c2f3a;color:#c3c8dd">預先查詢</span>
+        <span class="tool">${esc(t.reason || '')}</span>
+        <span class="ag">${esc(t.agent_name || t.agent || '')}</span>
+        <span class="ms">${t.ms == null ? '' : t.ms + ' ms'}</span></div>
+      <pre>${esc(t.error || (t.hits === 0 ? '它也查不到（0 筆）' : `取回 ${t.hits} 筆`))}</pre></div>`;
+  }
+  // abort：迴圈自己收工（連續失敗、或模型重複呼叫同一支工具）。
+  // 沒有 tool/ms/preview 欄位，不能落到下面的「結果」分支。
+  if (t.phase === 'abort') {
+    return `<div class="step">
+      <div class="hd"><span class="tag" style="background:#3a352c;color:#ddd3c3">收工</span>
+        <span class="tool">${esc(t.reason || '')}</span></div></div>`;
+  }
+  return `<div class="step">
+    <div class="hd">
+      <span class="tag ${t.ok ? 'ok' : 'err'}">${
+        t.ok ? '成功' : (t.offline ? '未啟動' : (t.repeated ? '重複' : '失敗'))}</span>
+      <span class="tool">${esc(t.tool)}</span>
+      <span class="ag">${esc(t.agent_name || t.agent || '')}</span>
+      <span class="ms">${t.ms} ms</span></div>
+    <pre>${esc(t.preview)}</pre></div>`;
+}
+
+// ---------------------------------------------------------------- 對話
+async function loadConvs() {
+  const d = await (await fetch('/hub/conversations')).json();
+  window._convs = d.conversations || [];
+  renderConvs();
+}
+
+function renderConvs() {
+  const cs = window._convs || [];
+  $('convs').innerHTML = cs.map(c => `
+    <div class="conv ${c.id === convId ? 'on' : ''}" data-id="${c.id}">
+      <span class="t" title="${esc(c.title)}">${esc(c.title)}</span>
+      <span class="e" data-edit="${c.id}" title="改名稱">✎</span>
+      <span class="x" data-del="${c.id}">×</span>
+    </div>`).join('') || '<div class="conv" style="cursor:default">（尚無對話）</div>';
+  document.querySelectorAll('#convs .conv').forEach(el => el.onclick = async ev => {
+    if (ev.target.tagName === 'INPUT') return;   // 正在改名稱，點輸入框不要觸發開啟對話
+    if (ev.target.dataset.del) {
+      await fetch('/hub/conversations/' + ev.target.dataset.del, {method:'DELETE'});
+      if (convId === ev.target.dataset.del) { convId = null; log.innerHTML = ''; }
+      return loadConvs();
+    }
+    if (ev.target.dataset.edit) return startRename(el, ev.target.dataset.edit);
+    openConv(el.dataset.id);
+  });
+}
+
+// 改名稱是就地把 .t 換成輸入框，不跳窗。Enter/失焦送出，Esc 放棄。
+function startRename(convEl, id) {
+  const tEl = convEl.querySelector('.t');
+  const c = (window._convs || []).find(x => x.id === id);
+  const old = c ? c.title : tEl.textContent;
+  tEl.classList.add('editing');
+  tEl.innerHTML = `<input type="text" value="${esc(old)}" maxlength="80">`;
+  const input = tEl.querySelector('input');
+  input.focus(); input.select();
+  let done = false;
+  const commit = async () => {
+    if (done) return; done = true;
+    const title = input.value.trim();
+    if (title && title !== old) {
+      await fetch('/hub/conversations/' + id, {
+        method: 'PATCH', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title}),
+      });
+    }
+    loadConvs();
+  };
+  input.onblur = commit;
+  input.onkeydown = ev => {
+    if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+    else if (ev.key === 'Escape') { done = true; loadConvs(); }
+  };
+}
+
+async function openConv(id) {
+  const c = await (await fetch('/hub/conversations/' + id)).json();
+  convId = id;
+  if (c.agent_id && BY_ID[c.agent_id]) { cur = c.agent_id; selectAgent(c.agent_id, true); }
+  // ★ 切換對話時要清掉定錨，否則 focusedTurn 仍指向舊節點，下面的 autoScroll(true) 會被略過。
+  focusedTurn = null;
+  scrollSpacer = null;
+  log.innerHTML = '';
+  renderBanner(BY_ID[cur]);
+  let lastQ = '';   // 重播時每張卡片的高亮要對到「那一輪」使用者問的字，不是最後一題
+  for (const m of c.messages) {
+    if (m.role === 'user') {
+      lastQ = m.content || '';
+      log.insertAdjacentHTML('beforeend',
+        `<div class="turn"><div class="q">${esc(m.content)}</div>
+         <div class="a"></div><div class="hits"></div></div>`);
+    } else {
+      const turn = log.lastElementChild;
+      if (!turn) continue;
+      const who = m.agent_id && BY_ID[m.agent_id] ? BY_ID[m.agent_id].name : '';
+      turn.querySelector('.a').innerHTML =
+        (who ? `<div class="who">${esc(who)}</div>` : '') + fmtAnswer(m.content || '（沒有產生回答）');
+      if ((m.trace || []).length) {
+        turn.querySelector('.a').insertAdjacentHTML('afterend',
+          `<details class="trace"><summary>委派軌跡（${m.trace.filter(t=>t.phase==='result').length} 次呼叫）</summary>
+           ${m.trace.map(traceStep).join('')}</details>`);
+      }
+      const hitsEl = turn.querySelector('.hits');
+      const kws = extractKeywords(lastQ);
+      hitsEl.innerHTML = (m.hits || []).map(h => hitCard(h, kws)).join('');
+      hitsEl._hits = m.hits || [];
+      // 重播時的判準跟當下一模一樣：那一輪的 trace 有問到誰，chip 就只有誰。
+      applyRelay(hitsEl, askedAgents(m.trace, m.agent_id));
+    }
+  }
+  renderConvs();
+  autoScroll(true);   // 使用者自己開了一段對話，跳到最新一輪
+}
+
+// ---------------------------------------------------------------- 送出
+$('f').onsubmit = async ev => {
+  ev.preventDefault();
+  if (busy) return;
+  const q = $('q').value.trim();
+  if (!q) return;
+  const kws = extractKeywords(q);   // 這一題的關鍵字，卡片裡對得上的字要標色
+  $('q').value = ''; autoGrowQ(); busy = true; $('send').disabled = true;
+  abortCtl = new AbortController();
+  $('stop').classList.add('show');
+
+  const turn = document.createElement('div');
+  turn.className = 'turn';
+  turn.innerHTML = `<div class="q">${esc(q)}</div>`
+    + `<div class="a pending">${thinkingHtml('Searching…')}</div><div class="hits"></div>`;
+  log.appendChild(turn);
+  syncChatLayout();
+  // 送出當下就跳到這一題：先墊出一個畫面高的空間（見 setSpacer），再定錨（見 focusedTurn），
+  // 之後這一輪的 autoScroll() 都不會把畫面拉走。
+  setSpacer(log.clientHeight);
+  scrollToTurn(turn);
+  const ansEl = turn.querySelector('.a'), hitsEl = turn.querySelector('.hits');
+  let traceEl = null, answer = '', whoTag = '', traceLabel = '工具軌跡';
+  const asked = new Set();   // 這一輪真的問到的其他 agent（見 relayChips）
+
+  try {
+    const resp = await fetch('/hub/message', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      signal: abortCtl.signal,
+      // 模式不再由畫面上的勾選決定，送出的當下依現況算一次（見 autoModes）
+      body: JSON.stringify({agent_id: cur, query: q, conv_id: convId, ...autoModes()}),
+    });
+    const reader = resp.body.getReader(), dec = new TextDecoder();
+    let buf = '', evName = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const lines = buf.split('\n'); buf = lines.pop();
+      for (const line of lines) {
+        if (line.startsWith('event: ')) { evName = line.slice(7).trim(); continue; }
+        if (!line.startsWith('data: ')) continue;
+        const p = JSON.parse(line.slice(6));
+
+        if (evName === 'hub') {
+          if (!convId) { convId = p.conv_id; loadConvs(); }
+        } else if (evName === 'meta') {
+          // 軌跡標題要分得出來：委派軌跡有別的 agent，工具軌跡全是自己的
+          traceLabel = p.delegating ? '委派軌跡' : '工具軌跡（只有自己的工具）';
+          // 這一行說明誰在回答、這一題被允許做什麼。
+          whoTag =`<div class="who">${esc(p.agent_name || '')}${
+            p.tool_mode ? ' · 只用自己的工具' : ''}${
+            p.retrieval_query && p.retrieval_query !== q ? ' · 實際檢索：' + esc(p.retrieval_query) : ''}</div>`;
+        } else if (evName === 'results') {
+          const hits = p.hits || [];
+          // ★ append：委派時下游追加的卡片（delegate._prefetch_peers），要接在後面而不是覆蓋，
+          //   上游自己查到的卡片也要保留。
+          // ★ refine：答完後換成答案實際引用的卡片（見 main.py CITED_CARD_AGENTS）。
+          //   只換卡片，答案文字已經畫好，不能像一般 results 那樣重設成 Thinking…
+          if (p.refine) {
+            hitsEl.innerHTML = hits.map(h => hitCard(h, kws)).join('');
+            hitsEl._hits = hits;
+            bindRelay(hitsEl);
+            applyRelay(hitsEl, asked);
+          } else if (p.append) {
+            if (hits.length) {
+              hitsEl.insertAdjacentHTML('beforeend',
+                `<div class="peer-hits-head">以下 ${hits.length} 張來自「${
+                  esc(p.agent_name || p.agent || '其他助理')}」</div>`
+                + hits.map(h => hitCard(h, kws)).join(''));
+              hitsEl._hits = (hitsEl._hits || []).concat(hits);
+              bindRelay(hitsEl);
+              // 這一包就是「真的問到別人」的證據，chip 立刻補上
+              if (p.agent && p.agent !== cur) { asked.add(p.agent); applyRelay(hitsEl, asked); }
+              autoScroll();
+            }
+          } else {
+            hitsEl.innerHTML = hits.length ? hits.map(h => hitCard(h, kws)).join('')
+              : `<div class="card">${esc(p.raw && (p.raw.note || p.raw.error) || '查無符合的資料')}</div>`;
+            // 卡片先畫、chip 後補：這時候還沒跑工具迴圈，不知道會不會問到別人
+            hitsEl._hits = hits;
+            bindRelay(hitsEl);
+            ansEl.innerHTML = whoTag + `<span class="pending">${thinkingHtml('Thinking…')}</span>`;
+            autoScroll();
+          }
+        } else if (evName === 'trace') {
+          if (!traceEl) {
+            ansEl.insertAdjacentHTML('afterend',
+              `<details class="trace"><summary>${esc(traceLabel)}</summary></details>`);
+            traceEl = turn.querySelector('details.trace');
+          }
+          if (p.phase === 'result') {
+            // 結果回來時把對應的「呼叫」那格換掉，避免同一個工具佔兩格
+            const c = traceEl.querySelector(`[data-id="${p.id}"]`);
+            if (c) c.outerHTML = traceStep(p); else traceEl.insertAdjacentHTML('beforeend', traceStep(p));
+            // 真的問到別人了，這時候「帶去問」才是在描述已經發生的事
+            if (p.ok && p.agent && p.agent !== cur) {
+              asked.add(p.agent);
+              applyRelay(hitsEl, asked);
+            }
+          } else {
+            traceEl.insertAdjacentHTML('beforeend', traceStep(p));
+            // prefetch 是系統代問的，一樣要讓「帶去問」的晶片出現 ——
+            // 那顆晶片描述的是「這一輪真的問到誰」，不是「模型決定問誰」。
+            if (p.phase === 'prefetch' && p.ok && p.agent && p.agent !== cur) {
+              asked.add(p.agent);
+              applyRelay(hitsEl, asked);
+            }
+          }
+          traceEl.querySelector('summary').textContent =
+            `${traceLabel}（${traceEl.querySelectorAll('.tag.ok,.tag.err').length} 步）`;
+          autoScroll();
+        } else if (evName === 'delta') {
+          // 下游的等候提示不當答案文字（見 isPatienceNote），直接略過，讓 .think 動畫繼續轉。
+          if (isPatienceNote(p.t)) continue;
+          answer += p.t || '';
+          ansEl.classList.remove('pending');
+          ansEl.innerHTML = whoTag + fmtAnswer(answer);
+          autoScroll();
+        } else if (evName === 'error') {
+          ansEl.classList.remove('pending');
+          // 帶 diag 表示 LLM 連線壞了：記到 HUB_LLM，下一題自動走只檢索（見 autoModes）。
+          let msg;
+          if (p.diag && !p.busy && !p.timeout && !p.cancelled) {
+            HUB_LLM = p.diag;
+            msg = '這一題只有下面查到的資料，因為 AI 現在沒辦法幫你寫答案。';
+          } else {
+            msg = `這一題沒問成，${oneLine(p.error, 40) || '中間有一段沒有回應'}。`;
+          }
+          ansEl.innerHTML = whoTag + fmtAnswer(answer)
+            + `<div style="margin-top:10px">${notice(msg, true)}</div>`;
+        }
+      }
+    }
+    if (!answer) {
+      ansEl.classList.remove('pending');
+      if (!ansEl.querySelector('.banner')) ansEl.innerHTML = whoTag + '（沒有產生回答，資料在下方）';
+    }
+  } catch (e) {
+    ansEl.classList.remove('pending');
+    if (e.name === 'AbortError') {
+      // 使用者自己按了停止，不是真的出錯 —— 顯示到目前為止的內容就好。
+      ansEl.innerHTML = whoTag + fmtAnswer(answer) + '<span style="color:var(--faint)">（已停止）</span>';
+    } else {
+      ansEl.innerHTML = notice('這一題沒送出去，可能是網路斷了，等一下再試一次。', true);
+    }
+  } finally {
+    busy = false; $('send').disabled = false; $('q').focus();
+    abortCtl = null;
+    $('stop').classList.remove('show');
+    clearSpacer();   // 這一輪答完了，拆掉墊片，不留永久的空白尾巴
+    // ★ 刻意不呼叫 autoScroll()：答完不該再跳一次。清掉 focusedTurn 後才恢復跟隨到底。
+    focusedTurn = null;
+  }
+};
+
+$('stop').onclick = () => { if (abortCtl) abortCtl.abort(); };
+
+// ---------------------------------------------------------------- 輸入框自動長高
+// 先把高度歸零再讀 scrollHeight，否則內容變短時框不會縮回。上限交給 CSS 的 max-height。
+function autoGrowQ() {
+  const el = $('q');
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
+}
+$('q').addEventListener('input', autoGrowQ);
+// Enter 送出、Shift+Enter 換行；輸入法組字中（isComposing）不送出。
+$('q').addEventListener('keydown', ev => {
+  if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) {
+    ev.preventDefault();
+    $('f').requestSubmit();
+  }
+});
+// 雙擊 Tab（400ms 內）：依序把目前 agent 的下一句範例填進輸入框（不送出）。
+// 單按 Tab 維持瀏覽器原本的焦點切換，不攔截。
+let tabTapAt = 0, tabExampleIdx = 0;
+function curExamples() {
+  const a = BY_ID[cur];
+  return ((a && a.examples) || []).filter(e => !MANUAL_LABELS.has(e.label));
+}
+$('q').addEventListener('keydown', ev => {
+  if (ev.key !== 'Tab') return;
+  const now = Date.now();
+  if (now - tabTapAt < 400) {
+    tabTapAt = 0;
+    const ex = curExamples();
+    if (!ex.length) return;
+    ev.preventDefault();
+    $('q').value = ex[tabExampleIdx % ex.length].prompt;
+    tabExampleIdx = (tabExampleIdx + 1) % ex.length;
+    autoGrowQ();
+  } else {
+    tabTapAt = now;
+  }
+});
+
+$('newconv').onclick = () => {
+  convId = null; focusedTurn = null; scrollSpacer = null;
+  log.innerHTML = ''; renderBanner(BY_ID[cur]); renderConvs(); $('q').focus();
+};
+// 說明書與統計開新分頁，查完還能回到原本的對話。
+$('manualBtn').onclick = () => window.open('/manual', '_blank', 'noopener');
+$('metricsBtn').onclick = () => window.open('/metrics', '_blank', 'noopener');
+
+// ---------------------------------------------------------------- 側欄收合
+// 記在 localStorage：使用者收起來以後重新整理頁面，不該又自動展開。
+function setSidebarOpen(open) {
+  $('sidebar').classList.toggle('collapsed', !open);
+  document.body.classList.toggle('sidebar-collapsed', !open);
+  localStorage.setItem('sidebarOpen', open ? '1' : '0');
+}
+$('sidebarToggle').onclick = () => setSidebarOpen($('sidebar').classList.contains('collapsed'));
+const savedSidebarOpen = localStorage.getItem('sidebarOpen');
+setSidebarOpen(savedSidebarOpen === null ? !matchMedia('(max-width:760px)').matches : savedSidebarOpen !== '0');
+$('agentPicker').onclick = () => {
+  if (agentsOpen && !$('sidebar').classList.contains('collapsed')) {
+    setAgentsOpen(false);
+  } else {
+    setSidebarOpen(true);
+    setAgentsOpen(true);
+  }
+};
+
+// Browser dictation adds text to the draft; sending stays an explicit action.
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.lang = 'zh-TW';
+  recognition.interimResults = false;
+  recognition.onstart = () => {
+    $('micBtn').setAttribute('aria-pressed', 'true');
+    $('micBtn').title = '停止語音輸入';
+    $('micBtn').setAttribute('aria-label', '停止語音輸入');
+  };
+  recognition.onend = () => {
+    $('micBtn').setAttribute('aria-pressed', 'false');
+    $('micBtn').title = '語音輸入';
+    $('micBtn').setAttribute('aria-label', '語音輸入');
+  };
+  recognition.onresult = ev => {
+    const text = Array.from(ev.results).map(r => r[0].transcript).join('');
+    $('q').value += ($('q').value ? ' ' : '') + text;
+    autoGrowQ(); $('q').focus();
+  };
+  recognition.onerror = ev => {
+    $('micBtn').title = ev.error === 'not-allowed' ? '請允許麥克風權限後再試' : '語音輸入失敗，請再試一次';
+    $('voiceStatus').textContent = $('micBtn').title;
+  };
+  $('micBtn').onclick = () => {
+    if ($('micBtn').getAttribute('aria-pressed') === 'true') recognition.stop();
+    else { $('voiceStatus').textContent = ''; recognition.start(); }
+  };
+} else {
+  $('micBtn').disabled = true;
+  $('micBtn').title = '此瀏覽器不支援語音輸入';
+}
+
+// ---------------------------------------------------------------- 淺色/深色主題
+// 沒有 data-theme 時跟隨系統設定，有則是使用者手動選擇（與 <style> 的說明一致）。
+// 這裡只切換屬性並畫按鈕圖示，顏色全交給 CSS 變數。
+const prefersLight = window.matchMedia && matchMedia('(prefers-color-scheme: light)');
+function currentTheme() {
+  return document.documentElement.dataset.theme || (prefersLight && prefersLight.matches ? 'light' : 'dark');
+}
+function renderThemeBtn() {
+  const light = currentTheme() === 'light';
+  // 按鈕圖示顯示「按下去會變成哪個」，跟月亮/太陽的常見用法一致。
+  const label = light ? '切換成深色主題' : '切換成淺色主題';
+  $('themeToggle').innerHTML = light
+    ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.4 14.7A8.5 8.5 0 0 1 9.3 3.6 8.5 8.5 0 1 0 20.4 14.7Z"/></svg>'
+    : '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+  $('themeToggle').title = label;
+  $('themeToggle').setAttribute('aria-label', label);
+}
+$('themeToggle').onclick = () => {
+  const next = currentTheme() === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('theme', next); } catch (e) {}
+  renderThemeBtn();
+};
+renderThemeBtn();
+
+loadAgents(true).then(loadConvs);
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>統計總覽 · Agent Hub</title>
+  <script>
+    try {
+      document.documentElement.dataset.theme = localStorage.getItem('theme') === 'light' ? 'light' : 'dark';
+    } catch (_) { document.documentElement.dataset.theme = 'dark'; }
+  </script>
+  <link rel="stylesheet" href="/static/metrics.css?v=20261016-theme">
+  <script src="/static/metrics.js?v=20261016-theme" defer></script>
+</head>
+<body>
+<main>
+  <header>
+    <div><a class="back" href="/">← Agent Hub</a><h1>統計總覽</h1><p>找出回應較慢、經常失敗或需要等待的 Agent。</p></div>
+    <div class="controls"><label for="days">統計期間</label><select id="days"><option value="1">最近 24 小時</option><option value="7" selected>最近 7 天</option><option value="30">最近 30 天</option><option value="90">最近 90 天</option></select><button id="refresh" type="button">重新整理</button></div>
+  </header>
+  <p class="scope">目前瀏覽器的對話紀錄 · 日期以台灣時間計算 · 手動更新</p>
+  <p id="notice" role="status" aria-live="polite">正在載入統計…</p>
+  <div id="content" hidden>
+    <section id="cards" class="cards" aria-label="主要指標"></section>
+    <p id="coverage" class="note"></p>
+    <section class="panel"><h2>每天的對話量</h2><p class="note">長條顯示已儲存的回答數；失敗、取消也計入。</p><div id="daily" class="daily"></div></section>
+    <section class="panel">
+      <div class="section-head"><div><h2>Agent 表現</h2><p class="note">比較實際服務呼叫；一題可呼叫多個 Agent。父、子呼叫可能重疊，耗時不能相加。模型呼叫僅包含共用 SDK 已追蹤的呼叫，原生 SDK 未回報部分不在此數字內。</p></div><label>排序 <select id="sort"><option value="latency">P95 耗時</option><option value="calls">呼叫次數</option><option value="failure_rate">失敗率</option></select></label></div>
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Agent 表現，可水平捲動"><table><thead><tr><th>Agent</th><th>主要回答</th><th>服務呼叫</th><th>失敗率</th><th>平均耗時</th><th>P95 耗時</th><th>模型呼叫</th><th>已回報 token<br>輸入 / 輸出</th></tr></thead><tbody id="agents"></tbody></table></div>
+    </section>
+    <section class="panel"><h2>耗時最長的 10 筆回答</h2><div class="table-wrap" tabindex="0" role="region" aria-label="較慢回答，可水平捲動"><table><thead><tr><th>時間（台灣）</th><th>主要 Agent</th><th>狀態</th><th>總耗時</th><th>累計排隊</th></tr></thead><tbody id="slow"></tbody></table></div></section>
+    <footer>失敗率 =（錯誤 + 逾時 + 忙碌）÷（成功 + 錯誤 + 逾時 + 忙碌），不含使用者取消與未知狀態。P95 代表約 95% 的紀錄在此時間內完成。累計排隊包含 Hub、模型與下游的等待，平行等待可能重疊。<br>只統計已儲存的對話；進入對話流程前遭拒絕的請求不包含在內。刪除對話也會移除其統計資料。Token 為已回報的用量，並非完整帳單。</footer>
+  </div>
+</main>
+</body>
+</html>

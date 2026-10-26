@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+dist/
+data/
+.env
+.env.bak*
+
+# 伺服器端的部署紀錄與該台專屬設定（deploy/apply.sh 寫的），不進版控
+.deploy/

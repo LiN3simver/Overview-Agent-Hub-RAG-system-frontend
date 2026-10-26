@@ -1,0 +1,20 @@
+.venv
+venv
+__pycache__
+**/__pycache__
+*.pyc
+.git
+.gitignore
+.env
+.env.*
+dist
+tests
+.pytest_cache
+data
+README.md
+run.bat
+docker-compose.yml
+# 部署腳本只在 host 上跑，不進 image（也不該讓它的改動使 build cache 失效）
+deploy
+.deploy
+.gitattributes

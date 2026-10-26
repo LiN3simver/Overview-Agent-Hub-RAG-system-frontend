@@ -1,0 +1,9 @@
+# Reviewed direct dependencies; Python 3.12, Windows and Linux.
+fastapi==0.141.1
+uvicorn[standard]==0.52.1
+pydantic==2.13.4
+httpx==0.28.1
+anthropic==0.120.2
+python-dotenv==1.2.2
+# Not installed on Windows; explicitly pin the Linux event loop too.
+uvloop==0.22.1; sys_platform == "linux" and platform_python_implementation == "CPython"

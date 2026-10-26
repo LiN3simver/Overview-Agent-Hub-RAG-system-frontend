@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>說明書 — Agent Hub</title>
+<!--
+  獨立於 index.html 的說明頁，專門講解而不是聊天，讓聊天介面保持精簡。
+  即時資料讀 /hub/agents、/hub/graph，不另外維護「誰接誰」的靜態複本，
+  agentkit/registry.py 改了這頁會自動跟著變。
+-->
+<style>
+  :root {
+    --bg:#11161c; --panel:#1a2129; --panel2:#151b22; --line:#2b3642;
+    --ink:#e6edf3; --dim:#93a1b0; --faint:#5c6b7a;
+    --accent:#5aa9e6; --green:#c6f5d3; --yellow:#f7f0c8;
+    --ok:#2e9c5a; --warn:#c9a227; --bad:#c25b5b;
+    --offline-dot:#44515e; --chip-bg:#202932; --box-accent-bg:#18232e;
+    --note-bg:rgba(90,169,230,.08);
+    --nd-bg:#171e26; --nd-canvas:#0f141a; --c-ext:#8fa0b3; --c-src:#d9a441;
+    --c-flow:#3fb98f; --c-db:#9a86e0; --c-man:#d4707f; --c-mut:#4d5a68;
+  }
+  /* 淺色主題：規則與 index.html 相同，兩頁共用 localStorage 的 theme 值。 */
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg:#f6f7f9; --panel:#ffffff; --panel2:#eef0f3; --line:#dde2e8;
+      --ink:#1b232c; --dim:#5b6672; --faint:#8891a0;
+      --accent:#1f6fb3; --green:#1f7a4d; --yellow:#8a6a10;
+      --ok:#2e9c5a; --warn:#9a7a12; --bad:#b23636;
+      --offline-dot:#aab3bf; --chip-bg:#eef1f5; --box-accent-bg:#eaf3fb;
+      --note-bg:rgba(31,111,179,.08);
+      --nd-bg:#ffffff; --nd-canvas:#f2f4f7; --c-ext:#5c6b7d; --c-src:#a8760f;
+      --c-flow:#12805e; --c-db:#6a55c4; --c-man:#b2495a; --c-mut:#98a2ae;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg:#f6f7f9; --panel:#ffffff; --panel2:#eef0f3; --line:#dde2e8;
+    --ink:#1b232c; --dim:#5b6672; --faint:#8891a0;
+    --accent:#1f6fb3; --green:#1f7a4d; --yellow:#8a6a10;
+    --ok:#2e9c5a; --warn:#9a7a12; --bad:#b23636;
+    --offline-dot:#aab3bf; --chip-bg:#eef1f5; --box-accent-bg:#eaf3fb;
+    --note-bg:rgba(31,111,179,.08);
+    --nd-bg:#ffffff; --nd-canvas:#f2f4f7; --c-ext:#5c6b7d; --c-src:#a8760f;
+    --c-flow:#12805e; --c-db:#6a55c4; --c-man:#b2495a; --c-mut:#98a2ae;
+  }
+  :root[data-theme="dark"] {
+    --bg:#11161c; --panel:#1a2129; --panel2:#151b22; --line:#2b3642;
+    --ink:#e6edf3; --dim:#93a1b0; --faint:#5c6b7a;
+    --accent:#5aa9e6; --green:#c6f5d3; --yellow:#f7f0c8;
+    --ok:#2e9c5a; --warn:#c9a227; --bad:#c25b5b;
+    --offline-dot:#44515e; --chip-bg:#202932; --box-accent-bg:#18232e;
+    --note-bg:rgba(90,169,230,.08);
+    --nd-bg:#171e26; --nd-canvas:#0f141a; --c-ext:#8fa0b3; --c-src:#d9a441;
+    --c-flow:#3fb98f; --c-db:#9a86e0; --c-man:#d4707f; --c-mut:#4d5a68;
+  }
+  body { transition:background-color .15s ease, color .15s ease; }
+  * { box-sizing:border-box; }
+  * { scrollbar-color: var(--faint) var(--panel2); }
+  *::-webkit-scrollbar { width:16px; height:16px; }
+  *::-webkit-scrollbar-track { background:var(--panel2); }
+  *::-webkit-scrollbar-thumb { background:var(--faint); border-radius:5px; border:2px solid var(--panel2); }
+  *::-webkit-scrollbar-thumb:hover { background:var(--dim); }
+  body {
+    margin:0; background:var(--bg); color:var(--ink); min-height:100vh;
+    font:16px/1.65 "Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif;
+  }
+  header {
+    padding:22px 28px 16px; border-bottom:1px solid var(--line);
+    display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+  }
+  header h1 { margin:0; font-size:22px; font-weight:700; }
+  header .sub { color:var(--dim); font-size:14.5px; }
+  header a.back {
+    margin-left:auto; color:var(--dim); text-decoration:none; font-size:14px;
+    border:1px solid var(--line); border-radius:6px; padding:5px 12px;
+  }
+  header a.back:hover { border-color:var(--accent); color:var(--accent); }
+
+  nav.tabs {
+    max-width:920px; margin:18px auto 0; padding:0 28px;
+    display:flex; gap:6px;
+  }
+  nav.tabs button {
+    font:inherit; font-size:15px; color:var(--dim); background:transparent;
+    border:1px solid var(--line); border-bottom:none; border-radius:8px 8px 0 0;
+    padding:9px 20px; cursor:pointer;
+  }
+  nav.tabs button.on { color:var(--ink); background:var(--panel); border-color:var(--line); }
+  nav.tabs button:hover { color:var(--ink); }
+
+  main {
+    max-width:920px; margin:0 auto 60px; padding:22px 28px 0;
+    border-top:1px solid var(--line);
+  }
+  section { display:none; }
+  section.on { display:block; }
+  h2 { font-size:18.5px; margin:26px 0 10px; }
+  h2:first-child { margin-top:6px; }
+  p.lead { color:var(--dim); font-size:15px; margin:0 0 18px; }
+
+  .agent-card {
+    background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:14px 16px; margin-bottom:12px;
+  }
+  .agent-card .hd { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .dot { width:9px; height:9px; border-radius:50%; background:var(--faint); flex:0 0 9px; }
+  .dot.ready { background:var(--ok); }
+  .dot.degraded { background:var(--warn); }
+  .dot.not_ready { background:var(--bad); }
+  .dot.offline { background:var(--offline-dot); }
+  .agent-card .name { font-size:16.5px; font-weight:700; }
+  .agent-card .status { font-size:13px; color:var(--faint); margin-left:auto; }
+  .agent-card .role { color:var(--dim); font-size:14.5px; margin-top:5px; }
+  .badges { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+  .badge {
+    font-size:12.5px; color:var(--dim); background:var(--chip-bg); border:1px solid var(--line);
+    border-radius:10px; padding:2px 9px;
+  }
+  .badge.on { color:var(--green); border-color:var(--green); }
+  .badge.tag { color:var(--accent); }
+  .examples { margin-top:10px; font-size:14px; }
+  .examples b { color:var(--faint); font-weight:400; font-size:13px; }
+  .examples ul { margin:5px 0 0; padding-left:18px; }
+  .examples li { color:var(--dim); margin:2px 0; }
+  .hint { margin-top:9px; font-size:13.5px; color:var(--bad); }
+
+  table.doc { width:100%; border-collapse:collapse; font-size:14.5px; margin:10px 0 20px; }
+  table.doc th, table.doc td { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; vertical-align:top; }
+  table.doc th { color:var(--dim); font-weight:600; font-size:13px; }
+  table.doc td.mono { font-family:ui-monospace,Consolas,monospace; color:var(--accent); white-space:nowrap; }
+
+  .pipeline { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:16px 0 22px; }
+  .pipeline .node {
+    background:var(--panel); border:1px solid var(--line); border-radius:8px;
+    padding:10px 14px; min-width:140px;
+  }
+  .pipeline .node .n { font-weight:700; font-size:14.5px; }
+  .pipeline .node .r { color:var(--dim); font-size:12.5px; margin-top:3px; }
+  .pipeline .arrow { color:var(--faint); font-size:20px; }
+  .pipeline .branch { display:flex; flex-direction:column; gap:8px; }
+
+  .note {
+    background:var(--note-bg); border-left:3px solid var(--accent);
+    border-radius:0 6px 6px 0; padding:9px 13px; margin:14px 0; font-size:14.5px; color:var(--dim);
+  }
+  .note b { color:var(--ink); }
+  code { color:var(--yellow); font-family:ui-monospace,Consolas,monospace; }
+  .loading { color:var(--faint); font-size:14.5px; }
+
+  /* ---------- 現在可以用的 RAG：放大講、配圖示 ---------- */
+  .spotlight {
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:18px 20px 20px; margin-bottom:18px;
+  }
+  .spot-hd { display:flex; gap:14px; align-items:flex-start; margin-bottom:6px; }
+  .spot-icon {
+    font-size:32px; line-height:1; flex:0 0 auto; width:46px; height:46px;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--panel2); border:1px solid var(--line); border-radius:10px;
+  }
+  .spot-name { font-size:18px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .spot-status { font-size:12.5px; font-weight:400; color:var(--ok); }
+  .spot-tagline { color:var(--dim); font-size:14.5px; margin-top:5px; }
+  .spotlight h3 { font-size:14.5px; margin:18px 0 8px; color:var(--dim); font-weight:600; }
+  .cando { margin:0; padding-left:20px; font-size:14.5px; color:var(--ink); }
+  .cando li { margin:4px 0; }
+  table.tool-table { width:100%; border-collapse:collapse; font-size:14px; margin-bottom:4px; }
+  table.tool-table td, table.tool-table th {
+    border-bottom:1px solid var(--line); padding:6px 8px; vertical-align:top; text-align:left;
+  }
+  table.tool-table th { color:var(--faint); font-weight:600; font-size:12.5px; }
+  table.tool-table td.ticon { font-size:17px; width:28px; text-align:center; }
+  table.tool-table td.tname { font-weight:600; white-space:nowrap; }
+  table.tool-table td.tnotready { color:var(--faint); }
+  .limits { margin:0; padding-left:20px; font-size:14px; color:var(--dim); }
+  .limits li { margin:5px 0; }
+  .also-section h2 { color:var(--dim); }
+  .also-lead { color:var(--faint); font-size:14px; margin:0 0 12px; }
+
+  /* ---------- 架構說明文件：圖 + 版面 ---------- */
+  /* 圖一律用 inline SVG：直接套用 CSS 變數，配色跟主題一致、放大不糊，
+     也不會多出一份與程式脫節的圖檔。 */
+  .fig {
+    background:var(--panel2); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px; margin:16px 0 6px; overflow-x:auto;
+  }
+  .fig svg { display:block; width:100%; min-width:660px; height:auto; }
+  .fig svg text { font-family:"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif; }
+  .figcap { color:var(--faint); font-size:13px; margin:0 0 22px; padding-left:2px; }
+  .sv-box   { fill:var(--panel); stroke:var(--line); stroke-width:1; }
+  .sv-box-a { fill:var(--box-accent-bg); stroke:var(--accent); stroke-width:1.2; }
+  .sv-box-q { fill:var(--panel2); stroke:var(--line); stroke-width:1; }
+  .sv-group { fill:none; stroke:var(--faint); stroke-width:1; stroke-dasharray:6 5; }
+  .sv-t  { fill:var(--ink);   font-size:14px; font-weight:700; }
+  .sv-s  { fill:var(--dim);   font-size:12.5px; }
+  .sv-f  { fill:var(--faint); font-size:11.5px; }
+  .sv-a  { fill:var(--accent);font-size:12.5px; }
+  .sv-line { stroke:var(--accent); stroke-width:1.6; fill:none; }
+  .sv-dash { stroke:var(--faint); stroke-width:1.3; fill:none; stroke-dasharray:5 4; }
+  .sv-lane { stroke:var(--line); stroke-width:1.2; stroke-dasharray:4 5; }
+  .sv-bar  { fill:var(--c-flow); opacity:.45; }
+  .sv-tick { stroke:var(--faint); stroke-width:1; opacity:.9; }
+
+  .grid3 {
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:12px; margin:16px 0 20px;
+  }
+  .mode { background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:13px 15px; }
+  .mode.on { border-color:var(--accent); }
+  .mode h4 { margin:0 0 4px; font-size:15px; }
+  .mode .sw { font-size:12.5px; color:var(--faint); font-family:ui-monospace,Consolas,monospace; }
+  .mode .wire { margin:9px 0 8px; font-size:13px; color:var(--dim); line-height:1.9; }
+  .mode .wire span { border:1px solid var(--line); border-radius:5px; padding:2px 7px; white-space:nowrap; }
+  .mode .wire span.yes { color:var(--green); border-color:var(--green); }
+  .mode .wire span.no  { color:var(--faint); }
+  .mode p { margin:0; font-size:13.5px; color:var(--dim); }
+
+  .legend { display:flex; gap:16px; flex-wrap:wrap; font-size:13.5px; color:var(--dim); margin:10px 0 6px; }
+  .legend b { color:var(--ink); font-weight:600; }
+  main ul { margin:8px 0 18px; padding-left:20px; }
+  main ul li { margin:5px 0; font-size:14.5px; }
+  main ul li b { color:var(--ink); }
+  .quote {
+    background:var(--panel2); border-left:3px solid var(--faint); border-radius:0 6px 6px 0;
+    padding:10px 14px; margin:12px 0 18px; font-size:14px; color:var(--dim);
+  }
+  .quote b { color:var(--ink); }
+  h3.sub { font-size:15px; margin:20px 0 6px; color:var(--dim); }
+  .theme-btn {
+    border:1px solid var(--line); background:transparent; color:var(--dim);
+    border-radius:6px; padding:5px 10px; font:inherit; font-size:14px; cursor:pointer;
+  }
+  .theme-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+</style>
+<script>
+// ★ 必須在畫面渲染前執行，否則會先閃一次預設主題色（與 index.html 共用 localStorage 的 theme 值）。
+(function () {
+  try {
+    var t = localStorage.getItem('theme');
+    if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+  } catch (e) {}
+})();
+</script>
+</head>
+<body>
+
+<header>
+  <h1>Agent Hub 說明書</h1>
+  <span class="sub">這個系統能做什麼、幾個 agent 怎麼互相接的</span>
+  <button type="button" class="theme-btn" id="themeToggle" title="切換淺色／深色主題" style="margin-left:auto"></button>
+  <a class="back" href="/" style="margin-left:0">← 回到對話</a>
+</header>
+
+<nav class="tabs">
+  <button data-tab="capability" class="on">你可以做什麼</button>
+  <button data-tab="architecture">架構說明文件</button>
+</nav>
+
+<main>
+  <section id="capability" class="on">
+    <p class="lead loading">讀取中…</p>
+  </section>
+  <!--
+    架構說明文件。內容是靜態的（講接法與設計決定），讀不到後端也看得到。
+    只有圖上的狀態燈（/hub/agents）與最下面的即時接法（/hub/graph）是即時的；
+    手繪示意圖不會自動更新，所以兩張都保留、互相對照。
+  -->
+  <section id="architecture">
+    <p class="lead">
+      這裡講的是「東西怎麼接的」：六個服務各自負責什麼、一句問話送出去之後經過哪些手、
+      系統怎麼自己決定要不要用工具與問別人。
+      想知道「我能問什麼」請看左邊那個分頁。
+    </p>
+
+    <h2>一、六個服務怎麼接</h2>
+    <p class="lead" style="margin-bottom:0">
+      五個 agent 是五個各自獨立跑起來的服務，彼此不共用資料庫、也不共用程式；
+      Hub 是第六個，它自己沒有語料，負責統一前端、保管對話、轉發訊息。
+      箭頭方向就是呼叫方向。
+      <b>8D 客訴單 Agent 有兩個上游</b>：產品估價要它評報價前的品質風險，
+      Bom 要它查換料前這顆料的客訴史。
+    </p>
+
+    <div class="fig">
+      <svg viewBox="0 0 900 566" role="img" aria-label="系統拓撲圖">
+        <defs>
+          <marker id="ah1" markerWidth="9" markerHeight="9" refX="8" refY="3"
+                  orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L8,3 L0,6 z" fill="var(--accent)"/>
+          </marker>
+          <marker id="ah1f" markerWidth="9" markerHeight="9" refX="8" refY="3"
+                  orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L8,3 L0,6 z" fill="var(--faint)"/>
+          </marker>
+        </defs>
+
+        <rect class="sv-box" x="24" y="14" width="214" height="46" rx="8"/>
+        <text class="sv-t" x="131" y="43" text-anchor="middle">瀏覽器（使用者）</text>
+        <path class="sv-line" d="M131 60 V 86" marker-end="url(#ah1)"/>
+
+        <rect class="sv-box-a" x="24" y="92" width="214" height="196" rx="9"/>
+        <text class="sv-t" x="42" y="120">Agent Hub　:8600</text>
+        <text class="sv-s" x="42" y="146">· 唯一對外的位址</text>
+        <text class="sv-s" x="42" y="167">· 統一前端與這份說明書</text>
+        <text class="sv-s" x="42" y="188">· 對話紀錄存在這裡</text>
+        <text class="sv-s" x="42" y="209">· 轉發問題並串流回答</text>
+        <text class="sv-s" x="42" y="230">· 五顆狀態燈</text>
+        <text class="sv-s" x="42" y="251">· 代理原始附件 PDF</text>
+        <text class="sv-f" x="42" y="274">對話存 SQLite（data/hub.db）</text>
+
+        <rect class="sv-box" x="24" y="320" width="214" height="84" rx="9"/>
+        <text class="sv-t" x="42" y="346">LLM Gateway</text>
+        <text class="sv-s" x="42" y="368">Anthropic API 相容</text>
+        <text class="sv-f" x="42" y="390">所有 agent 共用同一組憑證</text>
+
+        <path class="sv-dash" d="M238 190 H 296" marker-end="url(#ah1f)"/>
+        <text class="sv-f" x="240" y="182">轉發</text>
+        <path class="sv-dash" d="M238 360 H 296" marker-end="url(#ah1f)"/>
+        <text class="sv-f" x="240" y="352">摘要</text>
+
+        <rect class="sv-group" x="300" y="20" width="576" height="524" rx="10"/>
+        <text class="sv-f" x="314" y="42">五個 agent：各自獨立的服務、各自的資料庫，缺哪一個 Hub 都照樣運作</text>
+
+        <rect class="sv-box" x="330" y="56" width="520" height="70" rx="8"/>
+        <circle id="dot-rfq" cx="350" cy="80" r="5" fill="var(--faint)"/>
+        <text class="sv-t" x="364" y="85">產品估價 Agent</text>
+        <text id="st-rfq" class="sv-f" x="836" y="85" text-anchor="end">—</text>
+        <text class="sv-s" x="364" y="108">RFQ／S／D 歷史紀錄與成本區間　·　:8300</text>
+
+        <path class="sv-line" d="M352 126 V 176 H 360" marker-end="url(#ah1)"/>
+        <!-- 產品估價 -> 8D 客訴單：跳過 Bom 直接問，報價前的品質風險 -->
+        <path class="sv-line" d="M344 126 V 380 H 396" marker-end="url(#ah1)"/>
+
+        <rect class="sv-box" x="366" y="146" width="484" height="70" rx="8"/>
+        <circle id="dot-bom" cx="386" cy="170" r="5" fill="var(--faint)"/>
+        <text class="sv-t" x="400" y="175">Bom Agent</text>
+        <text id="st-bom" class="sv-f" x="836" y="175" text-anchor="end">—</text>
+        <text class="sv-s" x="400" y="198">決定一張 BOM 要哪些槽位、各多少用量　·　:8500</text>
+
+        <path class="sv-line" d="M388 216 V 272 H 396" marker-end="url(#ah1)"/>
+        <path class="sv-line" d="M388 216 V 360 H 396" marker-end="url(#ah1)"/>
+
+        <rect class="sv-box" x="402" y="242" width="448" height="72" rx="8"/>
+        <circle id="dot-partrag" cx="422" cy="267" r="5" fill="var(--faint)"/>
+        <text class="sv-t" x="436" y="272">相似搜尋建議 Agent（partrag）</text>
+        <text id="st-partrag" class="sv-f" x="836" y="272" text-anchor="end">—</text>
+        <text class="sv-s" x="436" y="295">成品料號相似檢索 ＋ 工程圖　·　:8000</text>
+
+        <rect class="sv-box" x="402" y="338" width="448" height="72" rx="8"/>
+        <circle id="dot-car8d" cx="422" cy="363" r="5" fill="var(--faint)"/>
+        <text class="sv-t" x="436" y="368">8D 客訴單 Agent</text>
+        <text id="st-car8d" class="sv-f" x="836" y="368" text-anchor="end">—</text>
+        <text class="sv-s" x="436" y="391">客訴抱怨單(8D)・不落地直接查來源系統　·　:8700</text>
+
+        <rect class="sv-box" x="330" y="434" width="520" height="72" rx="8"/>
+        <circle id="dot-iso" cx="350" cy="459" r="5" fill="var(--faint)"/>
+        <text class="sv-t" x="364" y="464">ISO 文件 Agent</text>
+        <text id="st-iso" class="sv-f" x="836" y="464" text-anchor="end">—</text>
+        <text class="sv-s" x="364" y="487">ISO 體系文件查詢・獨立節點，不委派也不被委派　·　:8800</text>
+      </svg>
+    </div>
+    <p class="figcap">
+      實線 = agent 之間的委派方向（單向，不會繞回來）；虛線 = Hub 的轉發與共用的 LLM。
+      狀態燈是即時讀 <code>/hub/agents</code> 畫的。
+      <b>8D 客訴單 Agent 有兩條實線進來</b>（產品估價與 Bom 各一條）而自己沒有下游 ——
+      所以不管誰問它，都不可能繞回上游。ISO 文件 Agent 是獨立節點，沒有任何連線。
+    </p>
+
+    <h2>為什麼要多 Hub 這一層</h2>
+    <ul>
+      <li><b>agent 的埠都不對外開。</b>瀏覽器認得到的只有 Hub 一個位址，
+        連卡片上的 PDF 連結都是指回 Hub、再由它轉打進真正持有檔案的那個 agent。</li>
+      <li><b>對話需要一個家。</b>對話集中存在 Hub，agent 一律無狀態，
+        每一輪由 Hub 把歷史帶過去 —— 新的 agent 一行對話程式都不用寫，
+        同一段對話也能換另一個 agent 接著回答。</li>
+      <li><b>不必為了前端去改在跑的服務。</b>瀏覽器從 Hub 直接打其他埠是跨來源請求，
+        每個 app 都得改設定；統一由 Hub 轉發就一個字都不用動。</li>
+      <li><b>「某個 agent 沒開」在一個地方講完。</b>不必每個頁面各自轉圈。</li>
+      <li><b>加一個 agent 不用改前端。</b>拓撲、名片、範例問句全部讀
+        <code>registry</code> 與 <code>/a2a/card</code>，新增 agent 時前端一個字都不用動。</li>
+    </ul>
+
+    <h2>二、一則問答走過的路</h2>
+    <p class="lead" style="margin-bottom:0">
+      送出問題後畫面上會依序出現：<code>檢索中…</code> → 卡片 →（有跑工具時）軌跡 → 逐字的回答。
+      那個順序不是巧合，是後端固定的事件順序：
+    </p>
+
+    <div class="fig">
+      <svg viewBox="0 0 900 372" role="img" aria-label="一則問答的時序圖">
+        <defs>
+          <marker id="ah2" markerWidth="9" markerHeight="9" refX="8" refY="3"
+                  orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L8,3 L0,6 z" fill="var(--accent)"/>
+          </marker>
+          <marker id="ah2f" markerWidth="9" markerHeight="9" refX="8" refY="3"
+                  orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L8,3 L0,6 z" fill="var(--faint)"/>
+          </marker>
+        </defs>
+
+        <text class="sv-t" x="80"  y="22" text-anchor="middle">瀏覽器</text>
+        <text class="sv-t" x="330" y="22" text-anchor="middle">Agent Hub</text>
+        <text class="sv-t" x="590" y="22" text-anchor="middle">該 agent</text>
+        <text class="sv-t" x="820" y="22" text-anchor="middle">資料庫 / LLM</text>
+        <line class="sv-lane" x1="80"  y1="34" x2="80"  y2="356"/>
+        <line class="sv-lane" x1="330" y1="34" x2="330" y2="356"/>
+        <line class="sv-lane" x1="590" y1="34" x2="590" y2="356"/>
+        <line class="sv-lane" x1="820" y1="34" x2="820" y2="356"/>
+
+        <text class="sv-s" x="205" y="60" text-anchor="middle">送出問題</text>
+        <path class="sv-dash" d="M80 70 H 326" marker-end="url(#ah2f)"/>
+
+        <text class="sv-s" x="460" y="96" text-anchor="middle">帶上這段對話的歷史（agent 自己不存）</text>
+        <path class="sv-dash" d="M330 106 H 586" marker-end="url(#ah2f)"/>
+
+        <text class="sv-s" x="705" y="132" text-anchor="middle">檢索：十一路排序，或確定性 SQL</text>
+        <path class="sv-dash" d="M590 142 H 816" marker-end="url(#ah2f)"/>
+        <path class="sv-dash" d="M820 168 H 594" marker-end="url(#ah2f)"/>
+
+        <text class="sv-a" x="345" y="196" text-anchor="middle">results：卡片先畫出來 —— 這一步在聯絡 LLM 之前</text>
+        <path class="sv-line" d="M590 206 H 84" marker-end="url(#ah2)"/>
+
+        <text class="sv-s" x="705" y="238" text-anchor="middle">摘要，或跑工具迴圈（有工具就跑）</text>
+        <path class="sv-dash" d="M590 248 H 816" marker-end="url(#ah2f)"/>
+        <path class="sv-dash" d="M820 274 H 594" marker-end="url(#ah2f)"/>
+
+        <text class="sv-a" x="345" y="302" text-anchor="middle">trace：呼叫了誰、成功還是失敗（只有跑工具時才有）</text>
+        <path class="sv-line" d="M590 312 H 84" marker-end="url(#ah2)"/>
+
+        <text class="sv-a" x="345" y="340" text-anchor="middle">delta：回答逐字送達 → done</text>
+        <path class="sv-line" d="M590 350 H 84" marker-end="url(#ah2)"/>
+      </svg>
+    </div>
+    <p class="figcap">
+      LLM 那一段（右邊兩條虛線）掛掉時，左邊那條 <code>results</code> 已經送出去了 —— 這是刻意的順序。
+    </p>
+
+    <table class="doc">
+      <tr><th>事件</th><th>意思</th></tr>
+      <tr><td class="mono">meta</td><td>這一輪由誰回答、跑的是哪一種模式</td></tr>
+      <tr><td class="mono">results</td><td>檢索結果 —— <b>一定在問 LLM 之前送出</b>，LLM 掛掉時至少資料已經到畫面上了</td></tr>
+      <tr><td class="mono">trace</td><td>工具／委派軌跡：哪一步、呼叫誰、參數、成功失敗、幾毫秒</td></tr>
+      <tr><td class="mono">delta</td><td>回答逐字送達</td></tr>
+      <tr><td class="mono">error</td><td>LLM 或下游出狀況時才有，附帶「該怎麼辦」</td></tr>
+      <tr><td class="mono">done</td><td>這一輪結束</td></tr>
+    </table>
+
+    <div class="note">
+      <b>按「暫停」是真的停。</b>暫停會切斷瀏覽器到 Hub 的連線，Hub 偵測到之後主動關掉
+      它對 agent 的連線，agent 再關掉打去 LLM 的串流 —— 三段一路收掉，不是畫面停了、
+      後面還在燒 token。
+    </div>
+
+    <h2>三、系統怎麼自己決定要用工具、要不要問別人</h2>
+    <p class="lead" style="margin-bottom:0">
+      「用自己的工具」「問其他助理」「只列資料」這三件事不需要使用者勾選，
+      由系統在送出的當下自己判，判準如下。
+    </p>
+
+    <div class="grid3">
+      <div class="mode on">
+        <h4>用自己的工具</h4>
+        <div class="sw">有工具就一定開</div>
+        <div class="wire">
+          <span class="yes">自己的工具 ✓</span> <span class="no">下游 ✗</span>
+        </div>
+        <p>資料完全不離開這個 agent，沒有需要事先同意的事。模型自己決定要查什麼、
+          查幾次。畫面標示「· 只用自己的工具」。</p>
+      </div>
+      <div class="mode on">
+        <h4>問其他助理</h4>
+        <div class="sw">有別人可問才開</div>
+        <div class="wire">
+          <span class="yes">自己的工具 ✓</span> <span class="yes">下游 ✓</span>
+        </div>
+        <p>這個 agent 有下游、而且下游至少有一個開著時才掛上他們的工具。
+          <b>開著不等於一定會問</b> —— 真正的判斷在下一段。畫面標示「· 需要時會問其他助理」。</p>
+      </div>
+      <div class="mode">
+        <h4>只列資料</h4>
+        <div class="sw">LLM 連不上時自動</div>
+        <div class="wire">
+          <span class="no">摘要 ✗</span> <span class="yes">卡片 ✓</span>
+        </div>
+        <p>LLM 打不通時自動跳過它，回答停在 <code>results</code> 那一步：卡片照樣查得到，
+          只是沒有人幫你寫成一段話。前端與 Hub 各判一次，程式化呼叫也一樣。</p>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>「只有自己真的答不出來才問別人」是模型當場判的，不是勾一個框事先猜的。</b>
+      委派迴圈的 system 明寫著：自己手上的檢索結果或自己的工具足以回答時，
+      直接回答、不要呼叫任何下游；只有缺的那一塊自己真的沒有時才委派，
+      而且只問缺的那一塊，不要把整題轉包出去。
+      理由很實際 —— 多問一輪要多花好幾秒與好幾倍 token，答案還可能被無關的資料帶偏。
+    </div>
+
+    <div class="note">
+      <b>沒有別人可問的時候，它不會假裝問過誰。</b>
+      這個 agent 沒有下游、或下游全部沒開機時，模型的工具清單裡根本不會出現別人的工具，
+      連下游的名片都不寫進去；就算它硬湊出一個像下游工具的名字，執行前也會被擋掉。
+      這種時候 system 會改成「你只有自己的工具」，缺資料就直說是哪一塊缺，
+      <b>不會用猜的料號或數字補位</b>。
+    </div>
+
+    <h2>四、委派迴圈裡實際發生什麼</h2>
+    <p class="lead" style="margin-bottom:0">
+      這個 agent 有工具（或有下游可問）時，回答不再是「檢索一次就寫答案」，而是一個迴圈：
+      模型自己決定要不要查、查什麼，拿到結果再決定下一步。
+    </p>
+
+    <div class="fig">
+      <svg viewBox="0 0 900 300" role="img" aria-label="工具與委派迴圈">
+        <defs>
+          <marker id="ah3" markerWidth="9" markerHeight="9" refX="8" refY="3"
+                  orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L8,3 L0,6 z" fill="var(--accent)"/>
+          </marker>
+        </defs>
+
+        <text class="sv-s" x="26" y="34">一輪最多 5 步。每一步都會送一個 trace 事件到畫面：哪一步、呼叫誰、成功失敗、幾毫秒。</text>
+        <text class="sv-f" x="26" y="58">用一模一樣的參數重複呼叫同一支工具會被擋掉，直接回「你剛才已經問過了」，不再白燒一步。</text>
+
+        <rect class="sv-box-a" x="40" y="110" width="190" height="70" rx="8"/>
+        <text class="sv-t" x="135" y="140" text-anchor="middle">模型</text>
+        <text class="sv-s" x="135" y="162" text-anchor="middle">看得到哪些工具是關鍵</text>
+        <path class="sv-line" d="M230 145 H 284" marker-end="url(#ah3)"/>
+
+        <rect class="sv-box" x="288" y="100" width="236" height="90" rx="8"/>
+        <text class="sv-t" x="406" y="128" text-anchor="middle">有沒有生出工具呼叫？</text>
+        <text class="sv-s" x="406" y="150" text-anchor="middle">看回應的內容判斷</text>
+        <text class="sv-f" x="406" y="171" text-anchor="middle">不看 gateway 給的結束理由（會騙人）</text>
+
+        <text class="sv-f" x="560" y="122" text-anchor="middle">沒有</text>
+        <path class="sv-line" d="M524 130 H 592" marker-end="url(#ah3)"/>
+        <rect class="sv-box" x="596" y="100" width="270" height="60" rx="8"/>
+        <text class="sv-t" x="731" y="126" text-anchor="middle">直接把結論寫成文字</text>
+        <text class="sv-s" x="731" y="147" text-anchor="middle">delta 逐字送到畫面</text>
+
+        <text class="sv-f" x="418" y="212">有</text>
+        <path class="sv-line" d="M406 190 V 222" marker-end="url(#ah3)"/>
+        <rect class="sv-box" x="288" y="226" width="236" height="60" rx="8"/>
+        <text class="sv-t" x="406" y="250" text-anchor="middle">執行一次呼叫</text>
+        <text class="sv-f" x="406" y="271" text-anchor="middle">自己的工具 ／ 下游的工具 ／ 問下游一句話</text>
+
+        <text class="sv-f" x="200" y="248" text-anchor="middle">結果回餵（砍筆數不砍字元）</text>
+        <path class="sv-line" d="M288 256 H 152 V 184" marker-end="url(#ah3)"/>
+
+        <path class="sv-line" d="M524 256 H 592" marker-end="url(#ah3)"/>
+        <rect class="sv-box-q" x="596" y="226" width="270" height="60" rx="8"/>
+        <text class="sv-t" x="731" y="250" text-anchor="middle">5 步用完還沒作答</text>
+        <text class="sv-s" x="731" y="271" text-anchor="middle">把工具收走，逼它把查到的講完</text>
+      </svg>
+    </div>
+    <p class="figcap">
+      最後那一格是「畫面一定會有東西」的保證：資料都查到了，不能讓你拿到一片空白。
+    </p>
+
+    <h3 class="sub">兩種呼叫下游的方式</h3>
+    <table class="doc">
+      <tr><th>方式</th><th>什麼時候用</th></tr>
+      <tr><td class="mono">&lt;agent&gt;__&lt;工具&gt;</td>
+          <td>知道要哪一筆資料，直接帶參數去拿（例如「這顆料有幾張客訴單」）</td></tr>
+      <tr><td class="mono">ask_&lt;agent&gt;</td>
+          <td>問題屬於對方專業，但不確定要用它哪一支工具 —— 整句話丟過去讓它自己判斷，
+              它還可以再往下問它自己的下游</td></tr>
+    </table>
+    <p style="font-size:14.5px;color:var(--dim);margin:-8px 0 18px">
+      第二種不是多餘的。有的 agent 自己的工具還沒就緒（會誠實回「尚未可用」，
+      因此不會掛給模型），這時候只剩「跟它講話」這條路 —— 而它有下游，
+      所以它答得出來。<b>能對話本身就是一種能力。</b>
+    </p>
+
+    <h3 class="sub">兩件刻意這樣做的事</h3>
+    <ul>
+      <li><b>圖是單向的。</b>只掛得到自己的下游，往回呼叫會被擋掉並收到「不是你的下游」
+        的說明。這是防環最便宜的做法：不可能繞成 A→B→A。</li>
+      <li><b>少一塊也要照樣回答，不是拋錯。</b>下游沒開就回「未啟動」；工具沒就緒就
+        不掛給模型（掛了它會呼叫、失敗、然後開始猜）；下游自己的限制（覆蓋率多少、
+        哪個數字不可信）會被抄進上游的指示裡。例如 Bom Agent 的下游都沒開時，
+        回答會像這樣（示意）：</li>
+    </ul>
+    <div class="quote">
+      結論：<b>目前查不到這顆料的相似料號與客訴紀錄。</b><br>
+      1. 相似搜尋建議 Agent 未啟動 —— 它的工具不在我的清單中。<br>
+      2. 8D 客訴單 Agent 未啟動 —— 無法確認這顆料的客訴史。<br>
+      <b>以下只根據我自己查到的現行 BOM 回答。</b>
+    </div>
+    <p style="font-size:14.5px;color:var(--dim);margin:-8px 0 20px">
+      沒有掛掉，也沒有編一個答案出來。這是設計目標，不是巧合。
+    </p>
+
+    <h2>五、狀態燈是怎麼判的</h2>
+    <div class="legend">
+      <span><b style="color:var(--ok)">●</b> 就緒 — 語料與依賴都在，可以正常回答</span>
+      <span><b style="color:var(--bad)">●</b> 尚未就緒 — 依賴不在或功能未實作，會照實說</span>
+      <span><b style="color:var(--offline-dot)">●</b> 未啟動 — 那個服務沒開</span>
+    </div>
+    <ul>
+      <li>每個 agent 自己回報狀態，Hub 只是把名片收齊了畫成燈。</li>
+      <li><b>檢查有硬期限（2.5 秒）。</b>資料庫容器停掉時，連線池要卡滿 30 秒才會放棄 ——
+        沒有期限的話，整個介面會在資料庫掛掉時轉半分鐘，而且上游 agent 會直接判它離線。
+        逾時就先回上一次的結果並標明是舊的，背景那條檢查讓它自己跑完。</li>
+      <li><b>同一時間只派一次檢查。</b>資料庫卡住時大家一直重新整理，如果每次都多派一條
+        去問，會越積越多、把資料庫壓得更慘；所以後到的人一律等同一次的結果。
+        舊結果最多沿用一分鐘，太舊就不再當成現況；一次檢查卡超過 30 秒直接判「尚未就緒」。</li>
+      <li><b>忙不等於壞。</b>每個 agent 同時只查幾筆，滿了會直接回「目前已經滿了，請等幾秒再送一次」，
+        而不是讓每個人都慢慢等。看到這句話代表服務好好的、只是忙，不要去重開它。</li>
+      <li>結果會快取十幾秒。剛把某個服務開起來、燈還沒變，重新整理一下就好。</li>
+      <li><b>後端還有一個「降級」狀態，畫面上一律當成就緒。</b>它代表的是背景排程沒跑完、
+        某個能力還沒實作這類「服務其實答得動」的事 —— 對著一個答得出來的 agent 說它降級，
+        只會讓人以為現在不能用，所以那個字不出現在任何畫面上。真的答不出來時，
+        狀態會是「尚未就緒」或「未啟動」，那兩個才會講。</li>
+    </ul>
+
+    <h2>六、卡片上的資料規則</h2>
+    <ul>
+      <li>卡片裡 <b>空白</b> 跟 <b>0</b> 是兩件事：欄位沒填顯示「未填」，欄位填了 0 就顯示 0。
+        某些庫只有極少數單子有成本明細，把「未填」畫成 0 會讓人以為成本真的是零 ——
+        後端一路保持兩者可分，前端才畫得出來。
+        客訴單上的「退回數／不良數」也是同一條規則：<b>0 是真的一件不良都沒有</b>，
+        空白是那張單沒填，兩者合併掉會讓人以為這批貨沒問題。</li>
+      <li><b>「沒查到」與「沒發生」是兩件事，卡片與答案都要分開講。</b>
+        客訴單語料有起訖範圍，所以它講的是「這份語料裡查不到這顆料的客訴」，
+        不會講成「這顆料沒出過事」—— 上游會拿這句話去決定報價。
+        同理，客訴單上「是否成立」有近一成是<b>還沒判定</b>，那不是「不成立」。</li>
+      <li>卡片上的 <b>raw</b> 一定是原封不動的原始列。正規化只是為了畫得出通用卡片，
+        不是拿來取代原始資料。</li>
+      <li>「帶去問」的按鈕只會出現在<b>這一輪真的問到</b>的 agent 上，
+        不會列出所有活著的 agent 誘導點擊。</li>
+      <li>卡片上如果有「資料來源」連結，點開是原始附件（例如工程圖 PDF、成本分析的掃描件）。
+        那個連結一律指回 Hub 再轉打進去 —— 因為持有檔案的 agent 不對外開埠。
+        <b>數字對不對得起來，自己開原檔核對。</b></li>
+    </ul>
+
+    <h2>七、對話存在哪裡、算誰的</h2>
+    <ul>
+      <li>對話集中存在 Hub（SQLite 資料庫，每天自動備份一份），每個 agent 完全無狀態。
+        每一輪由 Hub 把歷史帶過去，所以<b>同一段對話可以換另一個 agent 接著回答</b>。</li>
+      <li><b>每一輪都會留下來</b>，包括出錯、超過時間、或你按了暫停的那一輪 ——
+        已經查到的卡片與已經講出來的字都在，重新打開對話看得到。</li>
+      <li><b>一題最多等三分鐘。</b>時間到了會停止產生並說明原因，上面已經查到的資料仍然有效；
+        可以把問題縮小（指定編號、料號或時間範圍）再問一次。</li>
+      <li>清單、讀取、刪除只認你自己的那一份：第一次開頁面時 Hub 會發一個瀏覽器
+        自動帶的識別碼。<b>這不是登入</b> —— 它擋的是「不小心看到或刪到別人的對話」，
+        擋不住刻意冒用的呼叫端。要擋那個得先有帳號系統。</li>
+      <li>對話標題預設取問句前 40 字，改過之後不會被後面的訊息蓋回去。</li>
+    </ul>
+
+    <h2>八、同一套東西的兩種部署</h2>
+    <ul>
+      <li><b>本機開發</b>：六個服務各自啟動、各自對外開埠。有資料庫容器的是
+        相似搜尋與產品估價；Bom 與 8D 客訴單不落地，直接查來源系統。</li>
+      <li><b>伺服器</b>：整組跑在同一個內部網路裡，<b>只有 Hub 對外</b>，
+        agent 的埠一個都不開 —— 所以附件連結才必須走 Hub 代理那條路。</li>
+      <li>資料更新（PLM 主檔、工程圖）是<b>排程</b>做的，跟前端無關；
+        排程沒開的話，你看到的就是上一次匯入那一刻的快照。</li>
+    </ul>
+
+    <h2>九、即時：現在的接法</h2>
+    <p class="lead" style="margin-bottom:0">
+      上面那張拓撲圖是手繪的示意。下面這張直接讀後端的設定檔畫出來 ——
+      接法改了它會自己跟著變，兩張對不上時<b>以這張為準</b>。
+    </p>
+    <div id="graph-live"><p class="loading">讀取中…</p></div>
+
+    <div class="note">
+      想看更完整的技術細節（每個端點的形狀、環境變數），
+      請看專案的 <code>README.md</code> 與 <code>docs/ARCHITECTURE.md</code>，這頁是給使用者看的。
+    </div>
+  </section>
+</main>
+
+<script>
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// 「降級」一律顯示成就緒、用同一顆綠燈（理由見「五、狀態燈是怎麼判的」）。
+const STATUS_LABEL = { ready:'就緒', degraded:'就緒', not_ready:'尚未就緒', offline:'未啟動', unknown:'未知' };
+
+document.querySelectorAll('nav.tabs button').forEach(btn => btn.onclick = () => {
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b === btn));
+  document.querySelectorAll('main section').forEach(s => s.classList.toggle('on', s.id === btn.dataset.tab));
+});
+
+// not_ready 的原因：優先用 AgentSpec 宣告的 blocked_by，沒有就退回 detail 裡的技術原因
+// （status_fn 丟例外時會放在 detail.error）。
+function notReadyReason(a) {
+  const blocked = (a.blocked_by || []).map(esc).join('；');
+  if (blocked) return blocked;
+  const d = a.detail || {};
+  return esc(d.error || d.note || (d.llm_diag && d.llm_diag.title) || '') || '未說明（後端沒回傳原因，可能是依賴檢查本身有 bug）';
+}
+
+function agentCard(a) {
+  const caps = a.capabilities || {};
+  const examples = a.examples || [];
+  return `<div class="agent-card">
+    <div class="hd">
+      <span class="dot ${a.status === 'degraded' ? 'ready' : (a.status || 'unknown')}"></span>
+      <span class="name">${esc(a.name)}</span>
+      <span class="status">${STATUS_LABEL[a.status] || esc(a.status)} · ${esc(a.project || '')}</span>
+    </div>
+    <div class="role">${esc(a.role)}</div>
+    <div class="badges">
+      ${caps.tools ? '<span class="badge on">✓ 有自己的工具</span>' : '<span class="badge">沒有自己的工具</span>'}
+      ${caps.delegate ? '<span class="badge on">✓ 可以委派下游</span>' : '<span class="badge">不能委派下游</span>'}
+      ${(a.downstream || []).map(d => `<span class="badge tag">→ ${esc(d)}</span>`).join('')}
+    </div>
+    ${examples.length ? `<div class="examples"><b>可以這樣問：</b><ul>${
+      examples.map(e => `<li>${esc(e.label || e.prompt)}</li>`).join('')}</ul></div>` : ''}
+    ${a.status === 'offline' && a.hint ? `<div class="hint">${esc(a.hint)}</div>` : ''}
+    ${a.status === 'not_ready'
+      ? `<div class="hint" style="color:var(--warn)">卡在：${notReadyReason(a)}</div>` : ''}
+  </div>`;
+}
+
+// ---------------------------------------------------------------- 「現在可以用」的重點介紹
+// 這裡刻意手寫兩份白話說明（partrag／rfq）：工具的 description 是寫給模型讀的，對使用者太密。
+// 能不能用、工具名單、範例問句仍讀 /hub/agents 的即時資料，只有工具說明與資料限制是人工濃縮。
+const SPOTLIGHT = {
+  partrag: {
+    icon: '🔌',
+    tagline: '查「成品線材」——成品料號的規格、相似品、工程圖都在這裡。',
+    cando: [
+      '用長度、Pitch、PIN 數、AWG、接頭型號這些規格找料號',
+      '打完整料號，查這顆料的所有欄位（規格 + PLM 表單欄位）',
+      '找「這條線改個長度、改 PIN 數，有沒有現成的」的相似料號',
+      '查工程圖：標題欄、材料表逐列列出，並附上可以點開核對的 PDF 原檔',
+      '列出／統計型問題，例如「某廠區的線材共有幾筆」',
+    ],
+    limits: [
+      '這份語料只收「成品線材」，膠帶、端子、標籤這類 BOM 子件幾乎不在這裡',
+      '工程圖只收錄一小部分，查不到不代表這顆零件不存在，只代表它的圖還沒被收錄進來',
+      '成本欄位這裡大量缺漏，不能拿來回答「多少錢」——價格請問產品估價 Agent',
+    ],
+  },
+  rfq: {
+    icon: '💰',
+    tagline: '查歷史 RFQ／S／D 報價紀錄與成本區間，是估價流程的「歷史記憶」，不是即時報價器。',
+    cando: [
+      '用 RFQ／S／D 單號查完整成本欄位（原幣「綠框」+ 自動換算的 USD「黃框」）',
+      '用規格描述、客戶名、成本數值條件（例如材料成本大於 100）反查符合的單號',
+      '用材料料號查這顆料歷史上的成交單價、供應商、規格說明',
+      '給一段新產品規格，抓歷史相似案例，回傳成本區間與信心等級（給預估一個起點）',
+      '查產品料號的歷史下單紀錄——開過哪些單、成本欄位填了沒、掛不掛得出成本分析附件',
+      '幫下游 agent 把關：算出來的成本拿去對照歷史區間，抓出明顯離譜的數字',
+    ],
+    limits: [
+      '全庫只有一小部分 RFQ 有完整成本明細，查不到不代表沒做過，可能只是還沒匯入這份附件',
+      '「估價」給的是歷史參考區間，不是報價——信心等級不是 high 的，務必再走完整的 BOM 估算',
+      '這份資料算不出歷史毛利：報價與成本幾乎是兩批不重疊的紀錄，來源系統本來就沒有放在一起',
+    ],
+  },
+};
+
+// 工具名 -> 給人看的圖示／白話標籤／一句話說明。找不到對照的工具（例如日後
+// 新增的）就退回顯示它原本的 description 第一句，版面不會空著。
+const FRIENDLY_TOOL = {
+  search_parts: ['🔍', '查成品線材料號', '用自然語言、規格或料號找符合的線材'],
+  get_part: ['📇', '查單一料號全部欄位', '打完整料號，回傳它的規格與 PLM 表單欄位'],
+  find_similar_parts: ['🧬', '找相似料號', '同型改長度、改 PIN 數，找現成的替代品'],
+  search_drawings: ['📐', '查工程圖', '標題欄 + 材料表逐列，附 PDF 原檔連結'],
+  count_parts: ['📊', '清單／統計', '例如「列出所有 XX 廠的線材」「共有幾筆」'],
+  lookup_rfq: ['🧾', '查 RFQ／S／D 單', '用單號查表單成本欄位（綠框／黃框）'],
+  search_rfq: ['🔎', '反查 RFQ 單號', '用規格、客戶、成本條件找出符合的單'],
+  lookup_material: ['💲', '查材料單價', '用材料料號查歷史成交單價與供應商'],
+  find_similar_material: ['🧬', '找同系列材料', '料號只打一半，找同一族的料'],
+  search_material_spec: ['🧪', '用規格找材料', '用規格描述（例：30AWG 90ohm）找材料及單價'],
+  find_cost_doc_by_part_name: ['📄', '用附件表頭反查', '貼一段 PDF 表頭品名，找到對應的成本分析表'],
+  rfq_material_detail: ['🧾', 'RFQ 材料明細', '這張單附件裡逐項列出的材料'],
+  rfq_labor_detail: ['🛠️', 'RFQ 人工成本明細', '組裝／SMT／委外等人工費用怎麼算出來的'],
+  lookup_product: ['📇', '查產品歷史', '這顆產品料號歷史開過哪些單、成本填了沒'],
+  estimate_cost: ['📈', '新規格估價', '沒開過單的新規格，抓歷史相似案例給成本區間'],
+  sanity_check_cost: ['✅', '成本合理性檢核', '下游算出的成本，對照歷史抓出異常值'],
+};
+
+function toolRow(t) {
+  const info = FRIENDLY_TOOL[t.name];
+  const label = info ? info[1] : t.name;
+  const blurb = info ? info[2] : _firstSentence(t.description);
+  const icon = info ? info[0] : '🔧';
+  const cls = t.ready === false ? ' tnotready' : '';
+  return `<tr>
+    <td class="ticon">${icon}</td>
+    <td class="tname${cls}">${esc(label)}${t.ready === false ? '（尚未開放）' : ''}</td>
+    <td class="${cls.trim()}">${esc(blurb)}</td>
+  </tr>`;
+}
+
+function _firstSentence(s) {
+  const t = String(s || '').replace(/^【[^】]*】/, '').trim();
+  const cut = Math.min(...['。', '\n'].map(sep => {
+    const i = t.indexOf(sep);
+    return i === -1 ? Infinity : i;
+  }));
+  return cut === Infinity ? t.slice(0, 60) : t.slice(0, cut);
+}
+
+function spotlightHtml(a) {
+  const sp = SPOTLIGHT[a.agent_id];
+  const tools = (a.tools || []).filter(t => t.ready !== false).concat(
+    (a.tools || []).filter(t => t.ready === false));
+  const examples = a.examples || [];
+  return `<div class="spotlight">
+    <div class="spot-hd">
+      <span class="spot-icon">${sp.icon}</span>
+      <div>
+        <div class="spot-name">${esc(a.name)} <span class="spot-status">● 現在可以正常使用</span></div>
+        <div class="spot-tagline">${esc(sp.tagline)}</div>
+      </div>
+    </div>
+
+    <h3>查得到什麼</h3>
+    <ul class="cando">${sp.cando.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+
+    ${tools.length ? `<h3>它有這些工具（共 ${tools.length} 個）</h3>
+    <table class="tool-table">${tools.map(toolRow).join('')}</table>` : ''}
+
+    ${examples.length ? `<h3>可以這樣問</h3>
+    <div class="examples"><ul>${examples.map(e => `<li>${esc(e.label || e.prompt)}</li>`).join('')}</ul></div>` : ''}
+
+    <h3>要注意的限制</h3>
+    <ul class="limits">${sp.limits.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+  </div>`;
+}
+
+async function renderCapability() {
+  const el = document.getElementById('capability');
+  try {
+    const d = await (await fetch('/hub/agents')).json();
+    const agents = d.agents || [];
+    // 降級也算可以用（見 STATUS_LABEL 上方的說明），否則會跟卡片上的「就緒」矛盾。
+    const ready = agents.filter(a =>
+      SPOTLIGHT[a.agent_id] && (a.status === 'ready' || a.status === 'degraded'));
+    const rest = agents.filter(a => !ready.includes(a));
+    el.innerHTML = `
+      <p class="lead">
+        Agent Hub 背後是 ${agents.length} 個各自獨立的 agent，各自負責報價流程裡的一段，
+        目前有 ${ready.length} 個可以正常查詢與回答。選左側的 agent、打字問問題就好，
+        下面先詳細介紹現在能用的，之後是還沒完全就緒的。
+      </p>
+      ${ready.length ? `<h2>現在可以用</h2>${ready.map(spotlightHtml).join('')}` : ''}
+      ${rest.length ? `
+        <div class="also-section">
+          <h2>還沒完全就緒</h2>
+          <p class="also-lead">
+            這幾個 agent 現在還不能完整回答問題（下面會說明卡在哪），但仍然可以對話——
+            查不到就會照實說「查不到」或轉去問下游，不會捏造答案。
+          </p>
+          ${rest.map(agentCard).join('')}
+        </div>` : ''}
+      <h2>你不用設定任何東西</h2>
+      <table class="doc">
+        <tr><th>系統自己判的事</th><th>怎麼判</th></tr>
+        <tr><td>要不要用自己的工具</td><td>這個 agent 有工具就用（例如估價區間、合理性檢核）。資料不會離開它。</td></tr>
+        <tr><td>要不要問其他助理</td><td>自己答得出來就自己答；只有缺的那塊資料自己真的沒有，才把那一塊帶去問下游。沒有別的助理可問時就自己回答，不會假裝問過誰。</td></tr>
+        <tr><td>只列資料不寫摘要</td><td>AI 連不上時自動切換：卡片照樣查得到，只是沒有文字說明。</td></tr>
+      </table>
+      <div class="note">
+        <b>有些問題本來就得問別人。</b>例如 Bom Agent 查得到現行 BOM，但「有沒有現成的
+        相似料號」在相似搜尋、「這顆料有沒有客訴史」在 8D 客訴單 —— 它會把缺的
+        那一塊帶去問對應的下游。那不是設定，是它的角色。
+      </div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<p class="lead" style="color:var(--bad)">讀不到 /hub/agents：${esc(e.message)}</p>`;
+  }
+}
+
+// ---------------------------------------------------------------- 架構說明文件
+function pipelineHtml(nodes, edges) {
+  const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+  const hasUpstream = new Set(edges.map(e => e.to));
+  const roots = nodes.filter(n => !hasUpstream.has(n.id));
+  const downOf = id => edges.filter(e => e.from === id).map(e => byId[e.to]).filter(Boolean);
+
+  const nodeBox = n => `<div class="node"><div class="n">${esc(n.name)}</div>
+    <div class="r">${esc(n.role)}</div></div>`;
+
+  const chain = n => {
+    const kids = downOf(n.id);
+    if (!kids.length) return nodeBox(n);
+    if (kids.length === 1) return `${nodeBox(n)}<span class="arrow">→</span>${chain(kids[0])}`;
+    return `${nodeBox(n)}<span class="arrow">→</span><div class="branch">${
+      kids.map(k => `<div class="pipeline" style="margin:0">${chain(k)}</div>`).join('')}</div>`;
+  };
+
+  return roots.map(r => `<div class="pipeline">${chain(r)}</div>`).join('');
+}
+
+// 狀態燈的顏色。跟 CSS 的 .dot.* 是同一組值 —— SVG 裡沒辦法套那個 class
+// （它畫的是 background，圓點在 SVG 是 fill），所以這裡另外對照一次。
+const DOT_FILL = {
+  ready: 'var(--ok)', degraded: 'var(--ok)', not_ready: 'var(--bad)',
+  offline: 'var(--offline-dot)', unknown: 'var(--faint)',
+};
+
+// 架構頁文字是靜態的，這裡只補兩塊即時資料：
+//   ① 拓撲圖狀態燈（依 agent_id 找 dot-<id> / st-<id>，加 agent 只要在 SVG 補框）
+//   ② 從 registry 讀出的即時接法。讀不到後端時只有這兩塊顯示失敗。
+async function renderArchitecture() {
+  const live = document.getElementById('graph-live');
+
+  try {
+    const d = await (await fetch('/hub/agents')).json();
+    for (const a of d.agents || []) {
+      const dot = document.getElementById(`dot-${a.agent_id}`);
+      const st = document.getElementById(`st-${a.agent_id}`);
+      if (dot) dot.setAttribute('fill', DOT_FILL[a.status] || DOT_FILL.unknown);
+      if (st) st.textContent = STATUS_LABEL[a.status] || a.status || '—';
+    }
+  } catch (e) {
+    // 燈畫不出來就維持灰色，不必嚷嚷 —— 下面那塊會講同一件事。
+  }
+
+  try {
+    const d = await (await fetch('/hub/graph')).json();
+    live.innerHTML = pipelineHtml(d.nodes || [], d.edges || []);
+  } catch (e) {
+    live.innerHTML = `<p class="lead" style="color:var(--bad)">讀不到 /hub/graph：${esc(e.message)}</p>`;
+  }
+}
+
+// ---------------------------------------------------------------- 淺色/深色主題
+// 邏輯與 index.html 相同。
+const prefersLight = window.matchMedia && matchMedia('(prefers-color-scheme: light)');
+function currentTheme() {
+  return document.documentElement.dataset.theme || (prefersLight && prefersLight.matches ? 'light' : 'dark');
+}
+function renderThemeBtn() {
+  const light = currentTheme() === 'light';
+  document.getElementById('themeToggle').textContent = light ? '🌙' : '☀️';
+  document.getElementById('themeToggle').title = light ? '切換成深色主題' : '切換成淺色主題';
+}
+document.getElementById('themeToggle').onclick = () => {
+  const next = currentTheme() === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('theme', next); } catch (e) {}
+  renderThemeBtn();
+};
+renderThemeBtn();
+
+renderCapability();
+renderArchitecture();
+</script>
+</body>
+</html>
