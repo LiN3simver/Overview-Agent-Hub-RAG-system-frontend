@@ -186,11 +186,10 @@ def classify(err: BaseException | str) -> dict[str, Any]:
     raw = err if isinstance(err, str) else f"{type(err).__name__}: {err}"
     low = raw.lower()
     code = getattr(err, "status_code", None) if isinstance(err, BaseException) else None
-    key = os.environ.get("LLM_API_KEY") or ""
 
     if code == 401 or "invalid api key" in low or "authenticationerror" in low:
         return _diag("auth", "API key 無效或已被撤銷",
-                     f"gateway 回 401，這把 key（{key[:4]}…）連認證都過不了。",
+                     "gateway 回 401，目前設定的這把 key 連認證都過不了。",
                      "跟 gateway 管理者換一把新的 API key，填進 .env 的 "
                      "LLM_API_KEY 後重啟 Hub 與各 agent。", OWNER_ADMIN, raw)
 
