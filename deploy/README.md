@@ -1,5 +1,7 @@
 # 部署（Docker Compose + git push）
 
+**繁體中文** | [English](README.en.md)
+
 在本機用 Git Bash 執行，透過 SSH 把指定 commit `git push` 到伺服器，
 伺服器端的 `apply.sh` 依「改了哪些檔案」決定要重建 image、只重啟，或什麼都不做。
 

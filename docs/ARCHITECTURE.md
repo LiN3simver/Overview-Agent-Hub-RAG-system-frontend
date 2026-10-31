@@ -1,5 +1,7 @@
 # 架構說明
 
+**繁體中文** | [English](ARCHITECTURE.en.md)
+
 ## 1. 元件
 
 | 元件 | 角色 |
