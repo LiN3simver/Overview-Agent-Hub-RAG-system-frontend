@@ -8,13 +8,13 @@
 
 **系統導覽**：**Agent Hub（本 repo）** · [Part-RAG](https://github.com/LiN3simver/Part-RAG) · [RFQ-RAG](https://github.com/LiN3simver/RFQ-RAG) · [BOM-RAG](https://github.com/LiN3simver/Bom-RAG) · [8D-Report-RAG](https://github.com/LiN3simver/8D-Report-RAG) · [ISO-RAG](https://github.com/LiN3simver/ISO-RAG)
 
-> **作品集展示版**：不含公司資料、連線設定與內部主機資訊。各 Agent repository 為私人 repo，如需檢閱請聯繫我開通權限。
+> **作品集展示版**：不含公司資料、連線設定與內部主機資訊。
 
 ---
 
 ## 專案價值
 
-製造業的工程與業務知識分散在 PLM 表單、成本分析 PDF、掃描工程圖、BOM 結構、客訴單與 ISO 文件裡。業務報價要翻歷史詢價單、RD 換料要查 BOM 與客訴紀錄、品保要找程序文件條文——同一個問題常常要跨好幾個系統、問好幾個人。
+製造業的工程與業務知識分散在 PLM 表單、成本分析 PDF、掃描工程圖、BOM 結構、客訴單與 ISO 文件裡。業務報價要翻歷史詢價單、RD 換料要查 BOM 與客訴紀錄、品保要找程序文件條文——同一個問題常常要翻找不同區域的資料，相當不便。
 
 這套系統把五個獨立的 RAG／資料查詢服務接成同一個對話介面，重點在三件事：
 
